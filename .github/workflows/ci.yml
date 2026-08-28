@@ -78,6 +78,6 @@ jobs:
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\verify-release-compatibility.ps1 -SkipOsCheck
 
       - name: Secret scan
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
