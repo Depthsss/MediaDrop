@@ -1,0 +1,44 @@
+[package]
+name = "mediadrop"
+version = "1.0.0"
+description = "Local video downloader for YouTube, Instagram, X/Twitter and TikTok"
+authors = ["MediaDrop"]
+edition = "2021"
+default-run = "mediadrop"
+
+[[bin]]
+name = "mediadrop-native-host"
+path = "src/bin/mediadrop-native-host/main.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "mediadrop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri-plugin-dialog = "2"
+tauri-plugin-process = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-single-instance = "2"
+base64 = "0.22"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+uuid = { version = "1", features = ["v4"] }
+rookie = { path = "vendor/rookie-0.5.6" }
+rusqlite = { version = "0.31", features = ["bundled", "backup"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Memory", "Win32_System_Pipes", "Win32_System_Threading"] }
+tauri-winrt-notification = "0.8.0"

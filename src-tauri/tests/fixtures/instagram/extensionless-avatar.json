@@ -1,0 +1,15 @@
+{
+  "url": "https://scontent.cdninstagram.com/v/t51.29350-15/fixture-extensionless-avatar-post.jpg",
+  "extension": "jpg",
+  "type": "post",
+  "id": "fixture-extensionless-avatar-post",
+  "username": "fixture_owner",
+  "width": 1080,
+  "height": 1080,
+  "owner": {
+    "pk": "fixture-owner-001",
+    "username": "fixture_owner",
+    "full_name": "Fixture Owner",
+    "profile_pic_url": "https://scontent.cdninstagram.com/v/t51.2885-19/fixture-avatar-without-extension"
+  }
+}

@@ -1,0 +1,43 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+# Generated build and release material
+.cache/
+artifacts/
+latest.json
+browser-extension/dist/
+src-tauri/binaries/*.exe
+tools/**/__pycache__/
+tools/**/.venv/
+tools/**/build/
+tools/**/dist/
+tools/**/*.spec.bak
+
+# Local temp artifacts
+.codegraph/
+src-tauri/*.tmp
+src-tauri/*.tmp-*
+src-tauri/*-Frag*
+src-tauri/[0-9]
+src-tauri/native-messaging/generated/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

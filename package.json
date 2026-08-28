@@ -1,0 +1,22 @@
+{
+  "name": "mediadrop",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "check": "node --check src/main.js && node --check src/app/bootstrap.js && node --check src/app/errors.js && node --check src/app/tauri.js && node --check src/app/store.js && node --check src/features/accessibility/modal-controller.js && node --check src/features/clipboard-autofill.js && node --check src/features/extension-setup/setup-model.js && node --check src/features/preview/media-model.js && node --check src/features/preview/raster-loader.js && node --check src/features/instagram/auth-policy.js && node --check src/features/instagram/auth-controller.js && node --check src/features/downloads/progress-model.js && node --check src/features/downloads/media-result.js && node --check src/features/downloads/media-request.js && node --check src/features/downloads/history-store.js && node --check src/features/quality/format-model.js && node --check src/features/twitter-card/metadata.js && node --check src/features/twitter-card/renderer.js && node --check src/features/twitter-card/companion-renderer.js && node --check src/features/window-layout.js && node --check browser-extension/service-worker.js && node --check browser-extension/scan-media.js && node --check browser-extension/popup/popup.js && node --check browser-extension/shared/browser-flow.js && node --check browser-extension/shared/choice-model.js && node --check browser-extension/shared/clip-picker.js && node --check browser-extension/shared/native-client.js && node --check browser-extension/shared/source-candidates.js && node --check browser-extension/build.mjs && node --check tests/clipboard-autofill.test.js && node --check tests/companion-twitter-renderer.test.js && node --check tests/entrypoints.test.js && node --check tests/css-architecture.test.js && node --check tests/errors.test.js && node --check tests/extension-setup-model.test.js && node --check tests/instagram-auth-controller.test.js && node --check tests/instagram-auth-modal-integration.test.js && node --check tests/modal-controller.test.js && node --check tests/media-download-result.test.js && node --check tests/media-download-request.test.js && node --check tests/history-store.test.js && node --check tests/format-model.test.js && node --check tests/media-model.test.js && node --check tests/progress-model.test.js && node --check tests/setup-builder.test.js && node --check tests/store.test.js && node --check tests/tauri-facade.test.js && node --check tests/twitter-card-metadata.test.js",
+    "test": "node --test tests/clipboard-autofill.test.js tests/companion-twitter-renderer.test.js tests/entrypoints.test.js tests/css-architecture.test.js tests/errors.test.js tests/extension-setup-model.test.js tests/instagram-auth-controller.test.js tests/instagram-auth-modal-integration.test.js tests/modal-controller.test.js tests/media-download-result.test.js tests/media-download-request.test.js tests/history-store.test.js tests/format-model.test.js tests/media-model.test.js tests/progress-model.test.js tests/setup-builder.test.js tests/store.test.js tests/tauri-facade.test.js tests/twitter-card-metadata.test.js browser-extension/tests/*.test.js",
+    "extension:build": "node browser-extension/build.mjs",
+    "extension:build:dev": "node browser-extension/build.mjs --dev",
+    "verify:frontend": "npm run extension:build && npm run check && npm test",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  },
+  "dependencies": {
+    "@tauri-apps/plugin-dialog": "^2.7.0",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.1"
+  }
+}

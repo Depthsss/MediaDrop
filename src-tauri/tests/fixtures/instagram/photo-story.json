@@ -1,0 +1,17 @@
+{
+  "url": "https://scontent.cdninstagram.com/v/t51.29350-15/fixture-photo-story.jpg",
+  "extension": "jpg",
+  "type": "image",
+  "subcategory": "stories",
+  "id": "fixture-story-photo",
+  "username": "fixture_owner",
+  "width": 1080,
+  "height": 1920,
+  "taken_at": 1730000100,
+  "owner": {
+    "pk": "fixture-owner-001",
+    "username": "fixture_owner",
+    "full_name": "Fixture Owner",
+    "profile_pic_url": "https://scontent.cdninstagram.com/v/t51.2885-19/fixture-owner-avatar.jpg"
+  }
+}

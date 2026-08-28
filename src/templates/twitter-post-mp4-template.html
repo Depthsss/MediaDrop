@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    :root {
+      color-scheme: dark;
+      background: #0b0f14;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 1080px;
+      overflow: hidden;
+      background: #0b0f14;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    }
+
+    .contract {
+      width: 1080px;
+      min-height: 720px;
+      padding: 40px;
+      background: #111820;
+      color: #eef3f8;
+    }
+
+    .slot {
+      width: 936px;
+      height: 524px;
+      margin: 196px 0 0 0;
+      border-radius: 18px;
+      background: #05070a;
+      border: 1px solid #2b3947;
+    }
+
+    .metadata {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <main class="contract" data-twitter-post-template>
+    <section class="metadata" data-card>
+      <span data-avatar>{{avatar_initial}}</span>
+      <span data-display-name>{{display_name}}</span>
+      <span data-handle>{{handle}}</span>
+      <span data-date>{{date}}</span>
+      <span data-tweet-text>{{tweet_text}}</span>
+      <span data-platform-mark>{{platform_label}}</span>
+      <span data-quality-chip>{{quality_label}}</span>
+      <span data-duration-chip>{{duration_label}}</span>
+      <span data-action-count>{{reply_count}}</span>
+      <span data-action-count>{{retweet_count}}</span>
+      <span data-action-count>{{like_count}}</span>
+      <span data-source-label>{{source_label}}</span>
+    </section>
+
+    <div class="slot" data-video-slot></div>
+  </main>
+</body>
+</html>

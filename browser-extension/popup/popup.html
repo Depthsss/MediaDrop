@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MediaDrop</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="app-brand">
+        <img src="../icons/icon-64.png" width="36" height="36" alt="" />
+        <div class="app-brand-copy">
+          <strong>MediaDrop</strong>
+          <span>Tarayıcı eklentisi</span>
+        </div>
+      </div>
+      <div
+        id="connectionStatus"
+        class="status-pill idle"
+        role="status"
+        aria-live="polite"
+        aria-label="MediaDrop bağlanıyor"
+      >
+        <span id="connectionDot" class="status-dot" aria-hidden="true"></span>
+        <span id="connectionText">Bağlanıyor</span>
+      </div>
+    </header>
+    <main id="app" aria-live="polite" aria-busy="true"></main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

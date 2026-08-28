@@ -1,0 +1,27 @@
+{
+  "url": "https://scontent.cdninstagram.com/v/t51.29350-15/fixture-root-owner-post.jpg",
+  "extension": "jpg",
+  "type": "post",
+  "id": "fixture-post-owner-trap",
+  "username": "fixture_owner",
+  "width": 1080,
+  "height": 1350,
+  "caption": "Synthetic owner-selection fixture",
+  "owner": {
+    "pk": "fixture-owner-001",
+    "username": "fixture_owner",
+    "full_name": "Fixture Owner",
+    "profile_pic_url": "https://scontent.cdninstagram.com/v/t51.2885-19/fixture-root-owner-avatar.jpg"
+  },
+  "comments": [
+    {
+      "user": {
+        "pk": "fixture-commenter-001",
+        "username": "fixture_commenter",
+        "full_name": "Fixture Commenter",
+        "profile_pic_url": "https://scontent.cdninstagram.com/v/t51.2885-19/fixture-commenter-avatar.jpg"
+      },
+      "text": "Synthetic comment"
+    }
+  ]
+}
