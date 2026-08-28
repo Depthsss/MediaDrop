@@ -37,6 +37,19 @@ test("preview setup exposes the fixed custom UI contract", { skip: process.platf
 
     const setupPath = path.join(outputDirectory, "MediaDrop-Setup-1.0.0.exe");
     execFileSync(setupPath, [`/UISELFTEST=${contractPath}`], { cwd: tempRoot, stdio: "pipe" });
+    execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        path.join(projectRoot, "tests", "setup-ui-smoke.ps1"),
+        "-SetupPath",
+        setupPath,
+      ],
+      { cwd: tempRoot, stdio: "pipe" },
+    );
     const contract = JSON.parse(readFileSync(contractPath, "utf8"));
 
     assert.deepEqual(contract, {

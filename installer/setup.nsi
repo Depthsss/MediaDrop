@@ -296,7 +296,22 @@ Function SetBackground
   Exch $0
   ${NSD_FreeBitmap} $BackgroundImage
   ${NSD_SetBitmap} $Background "$0" $BackgroundImage
+  System::Call 'user32::SetWindowPos(p $Background, p 1, i 0, i 0, i 0, i 0, i 0x13) i .r1'
   Pop $0
+FunctionEnd
+
+Function HideNativeControls
+  GetDlgItem $0 $HWNDPARENT 1
+  ShowWindow $0 ${SW_HIDE}
+  EnableWindow $0 0
+  GetDlgItem $0 $HWNDPARENT 2
+  ShowWindow $0 ${SW_HIDE}
+  EnableWindow $0 0
+  GetDlgItem $0 $HWNDPARENT 3
+  ShowWindow $0 ${SW_HIDE}
+  EnableWindow $0 0
+  GetDlgItem $0 $HWNDPARENT 1028
+  ShowWindow $0 ${SW_HIDE}
 FunctionEnd
 
 Function HideScreenControls
@@ -1291,7 +1306,8 @@ Function SetupPage
   ${If} $Dialog == error
     Abort
   ${EndIf}
-  System::Call 'user32::SetWindowPos(p $Dialog, p 0, i 0, i 0, i 1120, i 650, i 0x14) i .r0'
+  Call HideNativeControls
+  System::Call 'user32::SetWindowPos(p $Dialog, p 0, i 0, i 0, i 1120, i 650, i 0x10) i .r0'
 
   ${NSD_CreateBitmap} 0 0 1120 650 ""
   Pop $Background

@@ -14,6 +14,8 @@ test("branded setup keeps guided extension setup inside the installer", async ()
   assert.match(setup, /File \/oname=MediaDrop\.msi/);
   assert.match(setup, /msiexec\.exe/);
   assert.match(setup, /Page custom SetupPage/);
+  assert.match(setup, /SetWindowPos\(p \$Background, p 1/);
+  assert.match(setup, /GetDlgItem \$0 \$HWNDPARENT 1/);
   assert.match(setup, /RequestExecutionLevel user/);
   assert.doesNotMatch(setup, /RequestExecutionLevel admin/);
   assert.match(setup, /ShellExecuteExW[\s\S]*t "runas"/);
