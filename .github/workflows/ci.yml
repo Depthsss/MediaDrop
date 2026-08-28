@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+
+      - name: Select stable Rust MSVC
+        shell: pwsh
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup target add x86_64-pc-windows-msvc
+
+      - uses: actions/cache@v5
+        with:
+          path: |
+            .cache/sidecars
+            src-tauri/binaries/*.exe
+          key: sidecars-${{ runner.os }}-${{ hashFiles('src-tauri/binaries/sidecars.lock.json', 'tools/instagram-helper/requirements.lock.txt', 'tools/instagram-helper/*.py', 'tools/instagram-helper/*.spec') }}
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Prepare checksum-locked sidecars
+        shell: powershell
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\prepare-sidecars.ps1
+
+      - name: Frontend and extension checks
+        run: npm run verify:frontend
+
+      - name: Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --package mediadrop -- --check
+
+      - name: Rust tests
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+
+      - name: Dependency audits
+        shell: powershell
+        run: |
+          npm audit --audit-level=high
+          cargo install cargo-audit --locked
+          cargo audit --file src-tauri/Cargo.lock
+
+      - name: Production bridge and Windows compatibility
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build-native-host.ps1 -Production
+          .\src-tauri\target\release\mediadrop-native-host.exe --self-test
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\verify-release-compatibility.ps1 -SkipOsCheck
+
+      - name: Secret scan
+        shell: powershell
+        run: |
+          $version = "8.30.1"
+          $archive = Join-Path $env:RUNNER_TEMP "gitleaks.zip"
+          $directory = Join-Path $env:RUNNER_TEMP "gitleaks"
+          Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/gitleaks/gitleaks/releases/download/v$version/gitleaks_${version}_windows_x64.zip" -OutFile $archive
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne "D29144DEFF3A68AA93CED33DDDF84B7FDC26070ADD4AA0F4513094C8332AFC4E") { throw "Gitleaks checksum verification failed." }
+          Expand-Archive -LiteralPath $archive -DestinationPath $directory
+          & (Join-Path $directory "gitleaks.exe") git --no-banner --redact=100 --log-opts=HEAD .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

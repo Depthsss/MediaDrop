@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediaDrop</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <main class="app">
+    <section class="console">
+      <header class="titlebar" data-tauri-drag-region>
+        <div class="titlebar-drag" data-tauri-drag-region>
+          <div class="title-brand" data-tauri-drag-region>
+            <div class="brand-mark" data-tauri-drag-region>
+              <img
+                src="./assets/mediadrop-logo-white.png"
+                alt="MediaDrop"
+                data-tauri-drag-region
+              />
+            </div>
+
+            <div class="title-copy" data-tauri-drag-region>
+              <p class="eyebrow" data-tauri-drag-region>MEDIADROP</p>
+              <strong data-tauri-drag-region>Local Downloader</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="window-actions">
+          <button id="minimizeBtn" class="window-btn" title="Küçült" type="button">
+            <span></span>
+          </button>
+
+          <button id="closeBtn" class="window-btn is-close" title="Kapat" type="button">
+            <span></span>
+          </button>
+        </div>
+      </header>
+
+      <section class="hero">
+        <div>
+          <h1>Seç, Yapıştır ve İndir!</h1>
+          <p class="subtitle">
+            YouTube, Instagram, X ve TikTok medya içeriklerini tek tıkla indir.
+          </p>
+        </div>
+
+        <div class="hero-actions">
+          <button id="extensionSetupBtn" class="update-btn" type="button" title="Tarayıcı eklentisini kur veya onar">
+            Eklenti
+          </button>
+
+          <button id="historyBtn" class="history-btn" type="button" title="İndirme geçmişini aç">
+            Geçmiş
+          </button>
+
+          <button id="updateBtn" class="update-btn" type="button" title="Güncellemeyi kontrol et">
+            Güncelle
+          </button>
+
+          <div class="status-pill">
+            <span class="status-dot"></span>
+            <span class="status-label">Çalışıyor</span>
+            <span id="appVersionBadge" class="app-version-badge" data-fallback="1.0.0">v1.0.0</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <label for="urlInput">Medya bağlantısı</label>
+
+          <div class="panel-status">
+            <span id="platformBadge" class="platform-badge is-hidden">Platform</span>
+            <p id="message" class="message" role="status" aria-live="polite" aria-atomic="true">Henüz bağlantı analiz edilmedi.</p>
+          </div>
+        </div>
+
+        <div class="input-row">
+          <div class="url-input-shell">
+            <input id="urlInput" type="url" placeholder="örn. https://www.instagram.com/p/..." autocomplete="off" />
+            <button id="urlClearBtn" class="url-clear-btn" type="button" title="Bağlantıyı temizle"
+              aria-label="Bağlantıyı temizle" hidden>
+              <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+                <path d="M6 6l8 8M14 6l-8 8" fill="none" stroke="currentColor" stroke-width="1.8"
+                  stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
+
+          <button id="analyzeBtn">Analiz</button>
+
+          <button id="folderBtn" class="folder-btn" title="İndirme klasörü seç" aria-label="İndirme klasörü seç"
+            type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                d="M3.5 6.75A2.25 2.25 0 0 1 5.75 4.5h4.1c.6 0 1.18.24 1.6.66l1.04 1.04c.14.14.33.22.53.22h5.23A2.25 2.25 0 0 1 20.5 8.67v8.58a2.25 2.25 0 0 1-2.25 2.25H5.75a2.25 2.25 0 0 1-2.25-2.25V6.75Z"
+                fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+              <path d="M4.25 9.25h15.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
+
+        <p id="folderLabel" class="folder-label">Kayıt klasörü: Varsayılan</p>
+
+        <div class="mode-row">
+          <label class="fast-mode diagnostic-mode" for="cloudReportsToggle">
+            <input id="cloudReportsToggle" type="checkbox" />
+            <span class="fast-mode-switch" aria-hidden="true"></span>
+            <span class="fast-mode-copy">
+              <strong>Tanılama raporlarını gönder</strong>
+              <small>Hata olursa teknik rapor geliştirici paneline gönderilir. Kapatılırsa yalnızca yerelde kalır.</small>
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section id="videoPreview" class="video-preview is-hidden">
+        <div class="thumb-wrap">
+          <img id="videoThumb" alt="Video thumbnail" />
+        </div>
+
+        <div class="video-info">
+          <p class="preview-label">Seçili video</p>
+          <h2 id="videoTitle">Video başlığı</h2>
+          <p id="videoMeta">Süre bilgisi</p>
+        </div>
+
+        <button id="qualityCard" class="quality-card is-hidden" type="button" disabled>
+          <span class="quality-card-label">Kalite</span>
+          <strong id="qualityCardValue">-</strong>
+          <small id="qualityCardDetail">Analiz bekleniyor</small>
+        </button>
+      </section>
+      <div id="formatList" class="format-list is-hidden" hidden></div>
+
+      <section id="mediaPreview" class="media-preview is-hidden" role="region" aria-labelledby="mediaPreviewTitle" aria-hidden="true">
+        <header class="media-preview-head">
+          <div class="media-preview-title">
+            <p id="mediaPreviewLabel" class="preview-label">Seçili fotoğraf</p>
+            <h2 id="mediaPreviewTitle">Fotoğraf</h2>
+            <span id="mediaPreviewMeta" aria-live="polite" aria-atomic="true">1 / 1</span>
+          </div>
+
+          <span id="mediaPreviewBadge" class="media-preview-badge">Fotoğraf</span>
+        </header>
+
+        <div class="media-stage">
+          <div id="mediaTweetCard" class="media-tweet-card is-hidden" aria-hidden="true">
+            <div class="media-tweet-head">
+              <div class="media-tweet-avatar">
+                <img id="mediaTweetAvatar" alt="" />
+                <span id="mediaTweetAvatarInitial">X</span>
+              </div>
+
+              <div class="media-tweet-author">
+                <strong id="mediaTweetName">X/Twitter</strong>
+                <span id="mediaTweetHandle">@x</span>
+              </div>
+
+              <span id="mediaTweetMeta" class="media-tweet-meta">1 / 1</span>
+            </div>
+
+            <p id="mediaTweetText" class="media-tweet-text"></p>
+          </div>
+
+          <div class="media-frame">
+            <button id="mediaPrevBtn" class="media-nav media-nav-left is-hidden" type="button" title="Önceki medya" aria-label="Önceki medya" aria-controls="mediaPreviewImage mediaPreviewVideo" aria-keyshortcuts="ArrowLeft">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M14.5 5 7.5 12l7 7" />
+              </svg>
+            </button>
+            <img id="mediaPreviewImage" alt="Fotoğraf önizleme" />
+            <video
+              id="mediaPreviewVideo"
+              class="is-hidden"
+              controls
+              playsinline
+              preload="metadata"
+              aria-label="Video önizleme"
+            ></video>
+            <button id="mediaNextBtn" class="media-nav media-nav-right is-hidden" type="button" title="Sonraki medya" aria-label="Sonraki medya" aria-controls="mediaPreviewImage mediaPreviewVideo" aria-keyshortcuts="ArrowRight">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="m9.5 5 7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+          <article id="mediaQuotedTweetCard" class="media-quoted-tweet-card is-hidden" aria-hidden="true">
+            <div class="media-quoted-tweet-head">
+              <div class="media-quoted-tweet-avatar">
+                <img id="mediaQuotedTweetAvatar" alt="" />
+                <span id="mediaQuotedTweetAvatarInitial">X</span>
+              </div>
+
+              <div class="media-quoted-tweet-author">
+                <strong id="mediaQuotedTweetName">X/Twitter</strong>
+                <span id="mediaQuotedTweetHandle">@x</span>
+              </div>
+
+              <span id="mediaQuotedTweetMeta" class="media-quoted-tweet-meta"></span>
+            </div>
+
+            <p id="mediaQuotedTweetText" class="media-quoted-tweet-text"></p>
+
+            <div id="mediaQuotedFrame" class="media-quoted-frame is-hidden">
+              <img id="mediaQuotedPreviewImage" class="is-hidden" alt="Alıntılanan gönderi fotoğraf önizlemesi" />
+              <video
+                id="mediaQuotedPreviewVideo"
+                class="is-hidden"
+                controls
+                playsinline
+                preload="metadata"
+                aria-label="Alıntılanan gönderi video önizlemesi"
+              ></video>
+            </div>
+          </article>
+
+          <button id="mediaQuotePrevBtn" class="media-nav media-nav-left is-hidden" type="button" title="Önceki medya" aria-label="Önceki medya" aria-controls="mediaPreviewImage mediaPreviewVideo mediaQuotedPreviewImage mediaQuotedPreviewVideo" aria-keyshortcuts="ArrowLeft">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M14.5 5 7.5 12l7 7" />
+            </svg>
+          </button>
+          <button id="mediaQuoteNextBtn" class="media-nav media-nav-right is-hidden" type="button" title="Sonraki medya" aria-label="Sonraki medya" aria-controls="mediaPreviewImage mediaPreviewVideo mediaQuotedPreviewImage mediaQuotedPreviewVideo" aria-keyshortcuts="ArrowRight">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="m9.5 5 7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="media-preview-actions">
+          <button id="downloadMediaPostBtn" class="media-photo-btn media-photo-btn-post is-hidden" type="button" disabled>Gönderiyi indir</button>
+          <button id="downloadMediaItemBtn" class="media-photo-btn" type="button" disabled>Fotoğrafı indir</button>
+          <button id="downloadMediaBatchBtn" class="media-photo-btn media-photo-btn-secondary is-hidden" type="button" disabled>
+            Tüm fotoğrafları indir
+          </button>
+        </div>
+      </section>
+
+      <section class="download-panel">
+        <div class="download-main">
+          <div>
+            <p class="selected-label">Seçilen format</p>
+            <h3 id="selectedFormat">Henüz seçim yok</h3>
+          </div>
+
+          <div class="download-actions">
+            <button id="clipBtn" class="clip-btn is-hidden" disabled type="button">Klip İndir</button>
+            <button id="downloadBtn" disabled>İndir</button>
+            <button id="postDownloadBtn" class="post-download-btn is-hidden" disabled type="button">Gönderiyi İndir</button>
+            <button id="cancelBtn" class="cancel-btn is-hidden" disabled type="button">İptal</button>
+            <button id="revealLastBtn" class="mini-action-btn reveal-last-btn is-hidden" type="button">
+              Klasörde Göster
+            </button>
+          </div>
+        </div>
+
+        <div id="clipStatusBar" class="clip-status-bar is-hidden" role="status" aria-live="polite" aria-atomic="true">
+          <span id="clipSummary">Klip modu aktif.</span>
+          <div class="clip-status-actions">
+            <button id="clipEditInlineBtn" type="button">Düzenle</button>
+            <button id="clipCancelInlineBtn" type="button">İptal et</button>
+          </div>
+        </div>
+
+        <div id="progressWrap" class="progress-wrap is-hidden" role="progressbar" aria-label="İndirme ilerlemesi" aria-describedby="progressLine" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Hazır" aria-hidden="true" aria-busy="false">
+          <div class="progress-head">
+            <span>İndirme</span>
+            <strong id="progressText">0%</strong>
+          </div>
+
+          <div class="progress-track">
+            <div id="progressFill" class="progress-fill"></div>
+          </div>
+
+          <p id="progressLine" class="progress-line">Hazır.</p>
+        </div>
+
+      </section>
+    </section>
+  </main>
+
+  <section id="qualityPicker" class="quality-picker is-hidden" role="dialog" aria-modal="true" aria-labelledby="qualityPickerTitle" aria-describedby="qualityFocusHint" aria-hidden="true" tabindex="-1">
+    <div class="quality-picker-backdrop" data-quality-close></div>
+
+    <article class="quality-picker-card">
+      <p id="qualityPickerTitle" class="quality-picker-eyebrow">KALİTE SEÇ</p>
+      <button id="qualityCloseBtn" class="quality-close-btn" type="button" aria-label="Kapat">×</button>
+
+      <div class="quality-picker-stage">
+        <button id="qualityPrevBtn" class="quality-arrow quality-arrow-left" type="button" aria-label="Daha yüksek kalite">
+          ‹
+        </button>
+
+        <div class="quality-focus-card">
+          <span id="qualityFocusIndex">1 / 1</span>
+          <strong id="qualityFocusValue">1080p</strong>
+          <small id="qualityFocusDetail">MP4 · AVC</small>
+          <em id="qualityFocusSize">Boyut bilinmiyor</em>
+        </div>
+
+        <button id="qualityNextBtn" class="quality-arrow quality-arrow-right" type="button" aria-label="Daha düşük kalite">
+          ›
+        </button>
+      </div>
+
+      <p id="qualityFocusHint" class="quality-focus-hint">Sol ok kaliteyi artırır, sağ ok kaliteyi düşürür.</p>
+
+      <div class="quality-picker-actions">
+        <button id="qualitySelectBtn" type="button">Seç</button>
+      </div>
+    </article>
+  </section>
+
+  <section id="historyPanel" class="history-panel is-hidden" role="dialog" aria-modal="true" aria-labelledby="historyPanelTitle" aria-describedby="historyList" aria-hidden="true" tabindex="-1">
+    <div class="history-backdrop" data-history-close></div>
+
+    <article class="history-card">
+      <header class="history-head">
+        <div>
+          <p>MEDIADROP</p>
+          <h2 id="historyPanelTitle">İndirme Geçmişi</h2>
+        </div>
+
+        <div class="history-actions">
+          <button id="clearHistoryBtn" class="icon-btn danger" type="button" title="Geçmişi temizle" aria-label="Geçmişi temizle">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 7h16" />
+              <path d="M10 11v6" />
+              <path d="M14 11v6" />
+              <path d="M6 7l1 13h10l1-13" />
+              <path d="M9 7V4h6v3" />
+            </svg>
+          </button>
+
+          <button id="closeHistoryBtn" class="icon-btn" type="button" title="Kapat" aria-label="Kapat">
+            <span></span>
+          </button>
+        </div>
+      </header>
+
+      <div id="historyList" class="history-list">
+        <p class="history-empty">Henüz indirme geçmişi yok.</p>
+      </div>
+    </article>
+  </section>
+
+  <section id="extensionSetupOverlay" class="extension-setup-overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="extensionSetupTitle" aria-describedby="extensionSetupDescription" aria-hidden="true" tabindex="-1">
+    <div class="extension-setup-backdrop" data-extension-setup-close></div>
+
+    <article class="extension-setup-card">
+      <header class="extension-setup-head">
+        <div>
+          <h2 id="extensionSetupTitle">Tarayıcı eklentisini bağla</h2>
+          <p id="extensionSetupDescription">Kurulu tarayıcını seç; MediaDrop doğru sayfayı ve adımları senin için hazırlasın.</p>
+        </div>
+        <button id="extensionSetupCloseBtn" class="extension-setup-close" type="button" aria-label="Kapat">
+          <span></span>
+        </button>
+      </header>
+
+      <div id="extensionConnectionStatus" class="extension-connection-status" role="status" aria-live="polite" aria-atomic="true">
+        <span aria-hidden="true"></span>
+        <strong>Bağlantı bekleniyor</strong>
+        <small>Eklenti yüklendiğinde bağlantı burada otomatik doğrulanır.</small>
+      </div>
+
+      <section class="extension-browser-section" aria-labelledby="extensionBrowserTitle">
+        <div class="extension-section-head">
+          <h3 id="extensionBrowserTitle">Tarayıcını seç</h3>
+          <span id="extensionBrowserHint">Kurulu tarayıcılar aranıyor</span>
+        </div>
+        <div id="extensionBrowserList" class="extension-browser-list" role="radiogroup" aria-label="Tarayıcı seçimi"></div>
+      </section>
+
+      <ol id="extensionSetupSteps" class="extension-steps" aria-label="Eklenti kurulum adımları"></ol>
+
+      <div class="extension-path-row">
+        <div>
+          <span>Eklenti klasörü</span>
+          <code id="extensionSetupPath">Hazırlanıyor…</code>
+        </div>
+        <button id="extensionCopyPathBtn" type="button" disabled>Yolu kopyala</button>
+      </div>
+
+      <p id="extensionSetupMessage" class="extension-setup-message" role="status" aria-live="polite"></p>
+
+      <footer class="extension-setup-actions">
+        <button id="extensionSetupLaterBtn" class="extension-secondary-btn" type="button">Daha sonra</button>
+        <button id="extensionSetupOpenBtn" class="extension-primary-btn" type="button" disabled>Tarayıcıda kurulumu aç</button>
+      </footer>
+    </article>
+  </section>
+
+  <section id="clipEditor" class="clip-editor is-hidden" role="dialog" aria-modal="true" aria-labelledby="clipEditorTitle" aria-describedby="clipMessage" aria-hidden="true" tabindex="-1">
+    <article class="clip-editor-card">
+      <header class="clip-editor-head" data-tauri-drag-region>
+        <button id="clipBackBtn" class="clip-back-btn" type="button">← Geri</button>
+
+        <div class="clip-editor-brand" data-tauri-drag-region>
+          <span class="clip-brand-mark" data-tauri-drag-region>
+            <img src="./assets/mediadrop-logo-white.png" alt="" data-tauri-drag-region />
+          </span>
+          <strong id="clipEditorTitle" data-tauri-drag-region>Youtube klip oluşturma</strong>
+        </div>
+
+        <button id="clipClearBtn" class="clip-clear-btn" type="button">Klibi iptal et</button>
+      </header>
+
+      <section class="clip-player-card">
+        <div id="clipPlayerMount" class="clip-player-mount">
+          <div class="clip-player-placeholder">
+            <strong>Ön izleme hazırlanıyor...</strong>
+            <span>YouTube oynatıcı yükleniyor.</span>
+          </div>
+        </div>
+
+        <div class="clip-player-controls">
+          <button id="clipPlayBtn" class="clip-play-btn" type="button" disabled>Oynat</button>
+
+          <div class="clip-volume">
+            <div class="clip-volume-trigger" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M4 9.5v5h3.6L13 19V5L7.6 9.5H4Z" />
+                <path d="M16 9c.8.8 1.2 1.8 1.2 3s-.4 2.2-1.2 3" />
+                <path d="M18.6 6.8A7.2 7.2 0 0 1 21 12a7.2 7.2 0 0 1-2.4 5.2" />
+              </svg>
+              <strong id="clipVolumeValue">80%</strong>
+            </div>
+
+            <div class="clip-volume-popover">
+              <span>Ses</span>
+              <input id="clipVolumeSlider" type="range" min="0" max="100" value="80" step="1" aria-label="Ses seviyesi" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="clip-timeline-card">
+        <div class="clip-time-head">
+          <span id="clipCurrentTime">00:00</span>
+          <strong id="clipDurationLabel">00:00</strong>
+        </div>
+
+        <div id="clipTrack" class="clip-track" aria-hidden="true">
+          <div id="clipSelectedRange" class="clip-selected-range"></div>
+          <span id="clipStartMarker" class="clip-marker is-start"></span>
+          <span id="clipEndMarker" class="clip-marker is-end"></span>
+        </div>
+
+        <input id="clipSeek" class="clip-seek" type="range" min="0" max="0" value="0" step="0.1" />
+      </section>
+
+      <section class="clip-controls-grid">
+        <div class="clip-time-box">
+          <label>Başlangıç</label>
+          <div class="clip-time-inputs">
+            <input id="clipStartMin" type="number" min="0" value="0" inputmode="numeric" />
+            <span>dk</span>
+            <input id="clipStartSec" type="number" min="0" max="59" value="0" inputmode="numeric" />
+            <span>sn</span>
+          </div>
+          <button id="clipSetStartBtn" class="clip-inline-time-btn" type="button">Şu anki anı seç</button>
+        </div>
+
+        <div class="clip-time-box">
+          <label>Bitiş</label>
+          <div class="clip-time-inputs">
+            <input id="clipEndMin" type="number" min="0" value="0" inputmode="numeric" />
+            <span>dk</span>
+            <input id="clipEndSec" type="number" min="0" max="59" value="15" inputmode="numeric" />
+            <span>sn</span>
+          </div>
+          <button id="clipSetEndBtn" class="clip-inline-time-btn" type="button">Şu anki anı seç</button>
+        </div>
+      </section>
+
+      <p id="clipMessage" class="clip-message">Başlangıç ve bitiş zamanını seç.</p>
+
+      <section class="clip-editor-actions">
+        <button id="clipPreviewBtn" type="button">Seçili klibi önizle</button>
+        <button id="clipDoneBtn" class="clip-done-btn" type="button">Bitti</button>
+      </section>
+    </article>
+  </section>
+
+  <section id="cookieAuthOverlay" class="tools-overlay cookie-auth-overlay is-hidden" role="alertdialog" aria-modal="true" aria-labelledby="cookieAuthTitle" aria-describedby="cookieAuthStatus" aria-hidden="true" tabindex="-1">
+    <article class="tools-card cookie-auth-card">
+      <div class="tools-mark cookie-auth-mark">
+        <img src="./assets/mediadrop-logo-white.png" alt="MediaDrop" />
+      </div>
+      <div class="cookie-auth-copy">
+      <h2 id="cookieAuthTitle">Instagram çerez izni</h2>
+      <p id="cookieAuthStatus">Bu linkteki görselleri indirebilmeniz için bazı çerezlerinize ihtiyacımız var! Lütfen tarayıcınızı seçiniz!</p>
+      </div>
+      <div class="cookie-auth-controls">
+        <div class="cookie-browser-picker">
+          <button id="cookieBrowserSelect" class="cookie-browser-select" type="button" aria-haspopup="listbox" aria-expanded="false">
+            <span class="cookie-browser-select-copy">
+              <strong id="cookieBrowserSelectedName">Tarayıcı seç</strong>
+              <small id="cookieBrowserSelectedDetail">Kurulu tarayıcı aranıyor</small>
+            </span>
+            <span class="cookie-browser-chevron" aria-hidden="true"></span>
+          </button>
+          <div id="cookieBrowserList" class="cookie-browser-list" role="listbox" aria-label="Tarayıcı seçimi" aria-hidden="true" inert></div>
+        </div>
+      <label class="cookie-remember">
+        <input id="cookieRememberCheck" type="checkbox" checked />
+        <span>Tekrar sorma</span>
+      </label>
+      <div class="cookie-auth-actions">
+        <button id="cookieDenyBtn" class="cookie-auth-btn cookie-auth-btn-ghost" type="button">İzin vermiyorum</button>
+        <button id="cookieAllowBtn" class="cookie-auth-btn" type="button">İzin veriyorum</button>
+      </div>
+      </div>
+    </article>
+  </section>
+
+  <section id="browserRestartOverlay" class="tools-overlay browser-restart-overlay is-hidden" role="alertdialog" aria-modal="true" aria-labelledby="browserRestartTitle" aria-describedby="browserRestartStatus" aria-hidden="true" tabindex="-1">
+    <article class="tools-card browser-restart-card">
+      <div class="tools-mark browser-restart-mark">
+        <img src="./assets/mediadrop-logo-white.png" alt="MediaDrop" />
+      </div>
+
+      <div class="browser-restart-copy">
+        <p class="browser-restart-kicker">Tarayıcı yeniden başlatılacak</p>
+        <h2 id="browserRestartTitle">Tarayıcı açık görünüyor</h2>
+        <p id="browserRestartStatus">Çerezleri güvenli okuyabilmemiz için tarayıcını kısa süreliğine yeniden başlatmamız gerekiyor. Lütfen kaydedilmemiş işlerini kaydet.</p>
+      </div>
+
+      <div class="browser-restart-actions">
+        <button id="browserRestartDenyBtn" class="browser-restart-btn browser-restart-btn-ghost" type="button">Vazgeç</button>
+        <button id="browserRestartAllowBtn" class="browser-restart-btn" type="button">Tarayıcıyı yeniden başlat ve devam et</button>
+      </div>
+    </article>
+  </section>
+
+  <section id="toolsOverlay" class="tools-overlay is-hidden" role="alertdialog" aria-modal="true" aria-labelledby="toolsOverlayTitle" aria-describedby="toolsStatus" aria-hidden="true" tabindex="-1">
+    <article class="tools-card">
+      <div class="tools-mark">
+        <img src="./assets/mediadrop-logo-white.png" alt="MediaDrop" />
+      </div>
+      <h2 id="toolsOverlayTitle">Eklentiler Güncelleniyor...</h2>
+      <p id="toolsStatus">İndirme araçları kontrol ediliyor.</p>
+      <div class="tools-track"><div id="toolsFill"></div></div>
+    </article>
+  </section>
+
+  <script type="module" src="./main.js"></script>
+</body>
+
+</html>

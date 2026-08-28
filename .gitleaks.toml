@@ -1,0 +1,17 @@
+title = "MediaDrop secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Generated dependencies and release outputs"
+paths = [
+  '''(?:^|[\\/])(?:node_modules|target|dist|\.cache|artifacts|\.venv|build)(?:[\\/]|$)''',
+  '''(?:^|[\\/])src-tauri[\\/]binaries[\\/].*\.exe$'''
+]
+
+[[allowlists]]
+description = "Stable Chromium extension public key (not a credential)"
+condition = "AND"
+paths = ['''(?:^|[\\/])browser-extension[\\/]manifest\.json$''']
+stopwords = ['''MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAm1hU1isajpsTTWRXQKLTZDug3Rgjey0FOWB6Hx885vtuhUjykHkY7kuOvfhtImtOYNY5aYZAhjXnKYIadFeQyicN2YmxO6wa7NGBEAOdPktD0IN4ip+R5eHewk2rpiJuWwzixYcZ/a8oT5UhtnXR1qUFcJJnR41o3juBpQ8QnJae/KZEP1MV4EwkawlbndmrdjIjLFh+g+OSguuL09HxLP3nHnHTUqKJKTyKtOcToC2CAQ8w6MD8gh1DoSGm0mor054ciDQRBLDFU7BYk0f356rFvefzFyG6K4DVZ7S+RWgGGAwViXiDQD+rdsjOMBUSu3JbpqTesrDdZdNzckYNgQIDAQAB''']

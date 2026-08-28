@@ -1,0 +1,90 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "MediaDrop",
+  "version": "1.0.0",
+  "identifier": "com.mab.mediadrop",
+  "build": {
+    "frontendDist": "../src",
+    "beforeDevCommand": "npm run extension:build:dev",
+    "beforeBuildCommand": "npm run extension:build"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "MediaDrop",
+        "width": 920,
+        "height": 650,
+        "minWidth": 680,
+        "minHeight": 520,
+        "resizable": true,
+        "visible": false,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false
+      }
+    ],
+    "security": {
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPCACHE/media-previews/**"
+        ]
+      },
+      "csp": "default-src 'self' customprotocol: asset: http://asset.localhost; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob: asset: http://asset.localhost; media-src 'self' https: blob: data: asset: http://asset.localhost; connect-src 'self' https: http://asset.localhost; frame-src https://www.youtube.com https://www.youtube-nocookie.com; child-src https://www.youtube.com https://www.youtube-nocookie.com"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "msi"
+    ],
+    "createUpdaterArtifacts": true,
+    "resources": {
+      "../browser-extension/dist/": "browser-extension/",
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
+    },
+    "externalBin": [
+      "binaries/yt-dlp",
+      "binaries/gallery-dl",
+      "binaries/instaloader-helper",
+      "binaries/aria2c",
+      "binaries/ffmpeg",
+      "binaries/ffprobe",
+      "binaries/deno"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
+      "wix": {
+        "upgradeCode": "8585b38d-5f90-4110-b089-6b89a3fb6339",
+        "fragmentPaths": [
+          "windows/fragments/native-messaging.wxs"
+        ],
+        "componentRefs": [
+          "MediaDropNativeMessagingHost"
+        ]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENGNTNBRTkzRDM5MzY1RgpSV1JmTmprOTZUcjFES051RStNeTdyNHlUSlJLYnlHSkVBSjFIamhibHY5UURoV1J4dE56UVd4MQo=",
+      "endpoints": [
+        "https://github.com/Depthsss/MediaDrop-Releases/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

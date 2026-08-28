@@ -1,0 +1,20 @@
+{
+  "url": "https://scontent.cdninstagram.com/v/t50.2886-16/fixture-video-story.mp4",
+  "extension": "mp4",
+  "type": "video",
+  "subcategory": "stories",
+  "id": "fixture-story-video-audio",
+  "username": "fixture_owner",
+  "width": 1080,
+  "height": 1920,
+  "taken_at": 1730000200,
+  "duration": 12,
+  "has_audio": true,
+  "audio_codec": "aac",
+  "owner": {
+    "pk": "fixture-owner-001",
+    "username": "fixture_owner",
+    "full_name": "Fixture Owner",
+    "profile_pic_url": "https://scontent.cdninstagram.com/v/t51.2885-19/fixture-owner-avatar.jpg"
+  }
+}

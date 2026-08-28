@@ -1,0 +1,14 @@
+{
+  "url": {
+    "unexpected": "not-a-string"
+  },
+  "extension": {
+    "unexpected": "not-a-string"
+  },
+  "type": "story",
+  "owner": {
+    "username": false,
+    "profile_pic_url": 42
+  },
+  "items": "unexpected-non-array-value"
+}

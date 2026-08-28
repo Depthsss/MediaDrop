@@ -1,0 +1,9 @@
+{
+  "name": "__HOST_NAME__",
+  "description": "MediaDrop browser companion bridge",
+  "path": "mediadrop-native-host.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://__EXTENSION_ID__/"
+  ]
+}

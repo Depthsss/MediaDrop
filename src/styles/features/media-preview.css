@@ -1,0 +1,709 @@
+/* Shared preview surface for Instagram posts, reels, Stories and X cards. */
+.media-preview {
+  margin-top: 9px;
+  padding: 10px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.058), rgba(255, 255, 255, 0.026)),
+    rgba(7, 9, 12, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.095);
+}
+
+.media-preview.is-hidden {
+  display: none;
+}
+
+.media-preview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.media-preview-title {
+  min-width: 0;
+}
+
+.media-preview-title h2 {
+  margin: 0;
+  max-width: 100%;
+  color: #fafafa;
+  font-size: 16px;
+  line-height: 1.22;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-preview-title span {
+  display: block;
+  margin-top: 5px;
+  color: #9ca3af;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-preview-badge {
+  flex: 0 0 auto;
+  max-width: 180px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.24);
+  font-size: 11px;
+  font-weight: 850;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 230px;
+  max-height: 330px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 42%),
+    rgba(0, 0, 0, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.085);
+}
+
+.media-preview.is-twitter-card .media-preview-head,
+.media-preview.is-instagram-card .media-preview-head {
+  display: none;
+}
+
+.media-stage.is-twitter-card,
+.media-stage.is-instagram-card {
+  height: clamp(280px, 55vh, 520px);
+  min-height: 280px;
+  max-height: 520px;
+  aspect-ratio: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(12, 18, 24, 0.98), rgba(5, 8, 12, 0.98)),
+    rgba(0, 0, 0, 0.78);
+  border-color: rgba(96, 165, 250, 0.16);
+}
+
+.media-stage.is-text-only {
+  height: auto;
+  min-height: 190px;
+  max-height: 420px;
+  justify-content: center;
+}
+
+.media-stage.is-twitter-card.is-text-only .media-frame {
+  display: none;
+}
+
+.media-stage.is-text-only .media-tweet-text {
+  max-height: 250px;
+  margin-top: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-line-clamp: 10;
+}
+
+.media-stage.is-instagram-card {
+  background:
+    linear-gradient(180deg, rgba(28, 13, 24, 0.98), rgba(8, 8, 13, 0.98)),
+    rgba(0, 0, 0, 0.78);
+  border-color: rgba(244, 114, 182, 0.18);
+}
+
+.media-preview.is-instagram-card {
+  border-color: rgba(244, 114, 182, 0.14);
+  background:
+    linear-gradient(180deg, rgba(244, 114, 182, 0.065), rgba(251, 146, 60, 0.028)),
+    rgba(7, 9, 12, 0.62);
+}
+
+.media-tweet-card {
+  display: block;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.media-tweet-card.is-hidden {
+  display: none;
+}
+
+.media-tweet-head {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: start;
+  gap: 11px;
+}
+
+.media-tweet-avatar {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  color: #e5f2ff;
+  background: linear-gradient(135deg, #203449, #0f1720);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.media-preview.is-instagram-card .media-tweet-avatar {
+  background: linear-gradient(135deg, #7c2d12, #831843 48%, #312e81);
+  border-color: rgba(251, 207, 232, 0.2);
+}
+
+.media-tweet-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.media-tweet-avatar img.is-hidden,
+.media-tweet-avatar span.is-hidden {
+  display: none;
+}
+
+.media-tweet-author {
+  min-width: 0;
+}
+
+.media-tweet-author strong,
+.media-tweet-author span {
+  display: block;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-tweet-author strong {
+  color: #f8fafc;
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.media-tweet-author span {
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.media-tweet-meta {
+  grid-column: 2;
+  max-width: 100%;
+  margin-top: -16px;
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-preview.is-instagram-card .media-tweet-meta {
+  color: #f9a8d4;
+}
+
+.media-tweet-text {
+  margin: -2px 2px 0 55px;
+  max-height: 36px;
+  color: #dbe7f3;
+  font-size: 12px;
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.media-tweet-text.is-empty {
+  display: none;
+}
+
+.media-stage.is-twitter-quote {
+  height: auto;
+  min-height: 430px;
+  max-height: none;
+  gap: 12px;
+}
+
+.media-stage.is-twitter-quote.is-text-only {
+  height: auto;
+  min-height: 250px;
+  max-height: 520px;
+}
+
+.media-stage.is-twitter-quote .media-tweet-text {
+  max-height: 58px;
+  -webkit-line-clamp: 3;
+}
+
+.media-stage.is-twitter-quote.has-outer-media .media-frame {
+  flex: 0 1 220px;
+  min-height: 120px;
+}
+
+.media-stage.is-twitter-quote.has-outer-media.has-quoted-media .media-frame {
+  flex-basis: 180px;
+  min-height: 100px;
+}
+
+.media-stage.is-twitter-quote .media-frame.is-hidden {
+  display: none;
+}
+
+.media-quoted-tweet-card {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  border-radius: 17px;
+  color: #e5edf5;
+  background: rgba(3, 8, 13, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.media-quoted-tweet-card.is-hidden {
+  display: none;
+}
+
+.media-quoted-tweet-head {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.media-quoted-tweet-avatar {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  color: #dbeafe;
+  background: linear-gradient(135deg, #1e3348, #0b141d);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.media-quoted-tweet-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.media-quoted-tweet-avatar img.is-hidden,
+.media-quoted-tweet-avatar span.is-hidden {
+  display: none;
+}
+
+.media-quoted-tweet-author {
+  min-width: 0;
+}
+
+.media-quoted-tweet-author strong,
+.media-quoted-tweet-author span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.media-quoted-tweet-author strong {
+  color: #f8fafc;
+  font-size: 13px;
+  line-height: 1.15;
+}
+
+.media-quoted-tweet-author span,
+.media-quoted-tweet-meta {
+  color: #8795a5;
+  font-size: 11px;
+}
+
+.media-quoted-tweet-author span {
+  margin-top: 2px;
+}
+
+.media-quoted-tweet-meta {
+  max-width: 120px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.media-quoted-tweet-text {
+  margin: 9px 1px 0 43px;
+  max-height: 58px;
+  overflow: hidden;
+  color: #dce6f0;
+  font-size: 12px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.media-quoted-tweet-text.is-empty {
+  display: none;
+}
+
+.media-quoted-frame {
+  position: relative;
+  width: 100%;
+  height: min(260px, 31vh);
+  min-height: 140px;
+  margin-top: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 13px;
+  background: #000;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.media-stage.is-twitter-quote.has-outer-media.has-quoted-media .media-quoted-frame {
+  height: min(190px, 23vh);
+  min-height: 110px;
+}
+
+.media-quoted-frame.is-hidden {
+  display: none;
+}
+
+.media-quoted-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--quoted-media-backdrop);
+  background-position: center;
+  background-size: cover;
+  filter: blur(22px) saturate(1.08);
+  opacity: 0.24;
+  transform: scale(1.08);
+}
+
+.media-quoted-frame img,
+.media-quoted-frame video {
+  position: relative;
+  z-index: 1;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+  object-fit: contain;
+  border-radius: 11px;
+}
+
+.media-quoted-frame video {
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.media-quoted-frame img.is-hidden,
+.media-quoted-frame video.is-hidden {
+  display: none;
+}
+
+.media-quoted-frame.is-loading::after {
+  content: "Alıntı önizlemesi hazırlanıyor";
+  position: absolute;
+  z-index: 2;
+  inset: auto 12px 12px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  color: #d4d4d8;
+  background: rgba(0, 0, 0, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  text-align: center;
+}
+
+.media-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.media-stage.is-twitter-card .media-frame,
+.media-stage.is-instagram-card .media-frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: #020617;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.media-stage.is-instagram-card .media-frame {
+  background: #120712;
+  border-color: rgba(244, 114, 182, 0.2);
+}
+
+.media-stage.is-twitter-card .media-frame::before,
+.media-stage.is-instagram-card .media-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--media-backdrop);
+  background-size: cover;
+  background-position: center;
+  filter: blur(24px) saturate(1.12);
+  opacity: 0.28;
+  transform: scale(1.08);
+}
+
+.media-stage.is-instagram-card .media-frame::before {
+  filter: blur(24px) saturate(1.18);
+  opacity: 0.32;
+}
+
+.media-frame img,
+.media-frame video {
+  position: relative;
+  z-index: 1;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.media-frame video {
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.media-frame img.is-hidden,
+.media-frame video.is-hidden {
+  display: none;
+}
+
+.media-stage.is-twitter-card .media-frame img,
+.media-stage.is-twitter-card .media-frame video,
+.media-stage.is-instagram-card .media-frame img,
+.media-stage.is-instagram-card .media-frame video {
+  border-radius: 14px;
+}
+
+.media-frame.is-loading::after {
+  content: "Önizleme hazırlanıyor";
+  position: absolute;
+  inset: auto 18px 18px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  color: #d4d4d8;
+  background: rgba(0, 0, 0, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+  text-align: center;
+}
+
+.media-nav {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.94);
+  background: rgba(7, 10, 15, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
+  line-height: 1;
+  transition:
+    transform 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease,
+    opacity 150ms ease;
+}
+
+.media-nav svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.media-nav path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.media-nav:focus-visible,
+.media-photo-btn:focus-visible {
+  outline: 2px solid #bfdbfe;
+  outline-offset: 3px;
+}
+
+.media-nav:hover:not(:disabled) {
+  transform: translateY(-50%) scale(1.04);
+  background: rgba(17, 24, 39, 0.82);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.media-nav:disabled {
+  opacity: 0.24;
+  cursor: default;
+}
+
+.media-nav.is-hidden {
+  display: none;
+}
+
+.media-nav-left {
+  left: 10px;
+}
+
+.media-nav-right {
+  right: 10px;
+}
+
+.media-preview-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 9px;
+}
+
+.media-photo-btn {
+  height: 42px;
+  min-width: 0;
+  padding: 0 14px;
+  border-radius: 14px;
+  color: #052e16;
+  background: linear-gradient(135deg, #86efac, #22c55e);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    transform 150ms ease,
+    opacity 150ms ease,
+    filter 150ms ease;
+}
+
+.media-photo-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+
+.media-photo-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.media-photo-btn-secondary {
+  color: #dbeafe;
+  background: rgba(59, 130, 246, 0.13);
+  border: 1px solid rgba(96, 165, 250, 0.26);
+}
+
+.media-preview.is-instagram-card .media-photo-btn-secondary {
+  color: #fce7f3;
+  background: rgba(219, 39, 119, 0.14);
+  border-color: rgba(244, 114, 182, 0.28);
+}
+
+.media-photo-btn-post {
+  color: #eaf2ff;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.38), rgba(14, 165, 233, 0.24));
+  border: 1px solid rgba(125, 211, 252, 0.28);
+}
+
+.media-photo-btn.is-hidden {
+  display: none;
+}
+
+@media (max-width: 840px) {
+  .media-preview-head,
+  .media-preview-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .media-preview-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .media-stage {
+    min-height: 240px;
+    aspect-ratio: 4 / 5;
+  }
+
+  .media-stage.is-twitter-card,
+  .media-stage.is-instagram-card {
+    height: clamp(300px, 62vh, 480px);
+    min-height: 300px;
+  }
+
+  .media-stage.is-twitter-card.is-twitter-quote {
+    height: auto;
+    min-height: 430px;
+    max-height: none;
+    aspect-ratio: auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .media-preview-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .media-nav {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .media-nav,
+  .media-photo-btn {
+    transition: none;
+  }
+}

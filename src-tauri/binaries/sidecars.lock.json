@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "target": "x86_64-pc-windows-msvc",
+  "sidecars": [
+    {
+      "name": "aria2c",
+      "version": "1.37.0",
+      "file": "aria2c-x86_64-pc-windows-msvc.exe",
+      "url": "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip",
+      "archiveType": "zip",
+      "archiveMember": "aria2c.exe",
+      "sha256": "BE2099C214F63A3CB4954B09A0BECD6E2E34660B886D4C898D260FEBFE9D70C2",
+      "license": "GPL-2.0-or-later",
+      "sourceUrl": "https://github.com/aria2/aria2/tree/release-1.37.0"
+    },
+    {
+      "name": "deno",
+      "version": "2.7.14",
+      "file": "deno-x86_64-pc-windows-msvc.exe",
+      "url": "https://github.com/denoland/deno/releases/download/v2.7.14/deno-x86_64-pc-windows-msvc.zip",
+      "archiveType": "zip",
+      "archiveMember": "deno.exe",
+      "sha256": "B6E83993F1F1AB97075A77043DE61118966D719B5450BC631251D47C3A34230B",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/denoland/deno/tree/v2.7.14"
+    },
+    {
+      "name": "ffmpeg",
+      "version": "8.1-full_build",
+      "file": "ffmpeg-x86_64-pc-windows-msvc.exe",
+      "url": "https://github.com/GyanD/codexffmpeg/releases/download/8.1/ffmpeg-8.1-full_build.zip",
+      "archiveType": "zip",
+      "archiveMember": "ffmpeg.exe",
+      "sha256": "D1E2A156261ECC675081943197A85F08F2868784A0AF499171EDE89353EDAD31",
+      "license": "GPL-3.0-or-later",
+      "sourceUrl": "https://github.com/FFmpeg/FFmpeg/tree/n8.1"
+    },
+    {
+      "name": "ffprobe",
+      "version": "8.1-full_build",
+      "file": "ffprobe-x86_64-pc-windows-msvc.exe",
+      "url": "https://github.com/GyanD/codexffmpeg/releases/download/8.1/ffmpeg-8.1-full_build.zip",
+      "archiveType": "zip",
+      "archiveMember": "ffprobe.exe",
+      "sha256": "70872C3FFBC43D0B2C570F9837F54D6E9A832F4CA25463E9735B6A3EC0621478",
+      "license": "GPL-3.0-or-later",
+      "sourceUrl": "https://github.com/FFmpeg/FFmpeg/tree/n8.1"
+    },
+    {
+      "name": "gallery-dl",
+      "version": "1.32.3",
+      "file": "gallery-dl-x86_64-pc-windows-msvc.exe",
+      "url": "https://codeberg.org/mikf/gallery-dl/releases/download/v1.32.3/gallery-dl.exe",
+      "archiveType": "file",
+      "sha256": "8984619B869A3A4D289F3A2D7F12DCAE930EA959FB446864470FDA1DA88F969E",
+      "license": "GPL-2.0-only",
+      "sourceUrl": "https://codeberg.org/mikf/gallery-dl/src/tag/v1.32.3"
+    },
+    {
+      "name": "instaloader-helper",
+      "version": "1.0.0",
+      "file": "instaloader-helper-x86_64-pc-windows-msvc.exe",
+      "buildScript": "tools/instagram-helper/build.ps1",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/Depthsss/MediaDrop/tree/v1.0.0/tools/instagram-helper"
+    },
+    {
+      "name": "yt-dlp",
+      "version": "2026.08.18.122307",
+      "file": "yt-dlp-x86_64-pc-windows-msvc.exe",
+      "url": "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/download/2026.08.18.122307/yt-dlp.exe",
+      "archiveType": "file",
+      "sha256": "652E154BCE7170070D0F26415C9A3C35C121F5A7903CB8CDE6D31C4577517FB9",
+      "license": "Unlicense",
+      "sourceUrl": "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/tag/2026.08.18.122307"
+    }
+  ]
+}
