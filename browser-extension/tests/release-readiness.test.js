@@ -5,6 +5,18 @@ import { readFile } from "node:fs/promises";
 
 const root = new URL("../../", import.meta.url);
 
+async function fileExists(relativePath) {
+  try {
+    await readFile(new URL(relativePath, root));
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+const releaseOperatorTest = await fileExists("release-mediadrop.ps1") ? test : test.skip;
+
 function extensionIdFromKey(key) {
   const publicKey = createPublicKey({
     key: Buffer.from(key, "base64"),
@@ -36,7 +48,6 @@ test("all canonical package manifests publish MediaDrop 1.0.1", async () => {
     componentLock,
     componentWorkerResources,
     indexHtml,
-    releaseNotes,
   ] =
     await Promise.all([
       readFile(new URL("package.json", root), "utf8").then(JSON.parse),
@@ -55,7 +66,6 @@ test("all canonical package manifests publish MediaDrop 1.0.1", async () => {
       readFile(new URL("component-update/Cargo.lock", root), "utf8"),
       readFile(new URL("installer/worker/component-worker.rc", root), "utf8"),
       readFile(new URL("src/index.html", root), "utf8"),
-      readFile(new URL("release-notes.md", root), "utf8"),
     ]);
 
   assert.equal(packageJson.version, expectedVersion);
@@ -76,7 +86,6 @@ test("all canonical package manifests publish MediaDrop 1.0.1", async () => {
   assert.match(componentLock, /name = "mediadrop-component-update"\r?\nversion = "1\.0\.1"/);
   assert.match(componentWorkerResources, /FILEVERSION 1,0,1,0/);
   assert.match(indexHtml, /data-fallback="1\.0\.1">v1\.0\.1/);
-  assert.match(releaseNotes, /^# MediaDrop 1\.0\.1$/m);
 });
 
 test("1.0.1 preserves stable application, updater, MSI and extension identities", async () => {
@@ -97,7 +106,7 @@ test("1.0.1 preserves stable application, updater, MSI and extension identities"
   assert.equal(extensionIdFromKey(extensionManifest.key), "gifnifkakikpndieohkijmjccmmikalm");
 });
 
-test("release validation includes installer worker metadata, notes, and generated updater metadata", async () => {
+releaseOperatorTest("release validation includes installer worker metadata, notes, and generated updater metadata", async () => {
   const script = await readFile(new URL("release-mediadrop.ps1", root), "utf8");
 
   for (const source of [

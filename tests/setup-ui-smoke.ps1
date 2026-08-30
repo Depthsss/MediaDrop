@@ -152,6 +152,13 @@ public static class MediaDropSetupProbe {
 
 function Start-HiddenProbe {
   param([string]$Screen, [string]$HoverTarget = "")
+  $startupCount = if (Test-Path -LiteralPath $ActionLog) {
+    @(Get-Content -LiteralPath $ActionLog | Where-Object { $_ -eq "startup_ready" }).Count
+  } else { 0 }
+  $screenAction = "screen:$Screen"
+  $screenCount = if (Test-Path -LiteralPath $ActionLog) {
+    @(Get-Content -LiteralPath $ActionLog | Where-Object { $_ -eq $screenAction }).Count
+  } else { 0 }
   $arguments = "/SCREEN=$Screen /OFFSCREENUITEST=1 /UIACTIONLOG=$ActionLog"
   if ($Lifecycle) { $arguments += " /WORKERSCENARIO=cancel" }
   if (-not [string]::IsNullOrWhiteSpace($HoverTarget)) { $arguments += " /HOVERUITEST=$HoverTarget" }
@@ -165,6 +172,8 @@ function Start-HiddenProbe {
     if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
     throw "Hidden setup window was not created for screen: $Screen"
   }
+  Wait-Action $screenAction ($screenCount + 1)
+  Wait-Action "startup_ready" ($startupCount + 1)
   [pscustomobject]@{ Process = $process; Root = $root }
 }
 
