@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const setupVersion = JSON.parse(readFileSync(path.join(projectRoot, "package.json"), "utf8")).version;
+const removeTempRoot = (tempRoot) =>
+  rmSync(tempRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 
 test("production setup delegates MSI work to the normal-integrity broker", () => {
   const source = readFileSync(path.join(projectRoot, "installer", "setup.nsi"), "utf8");
@@ -173,7 +175,7 @@ test("preview setup exposes the fixed custom UI contract", { skip: process.platf
       ],
     });
   } finally {
-    rmSync(tempRoot, { recursive: true, force: true });
+    removeTempRoot(tempRoot);
   }
 });
 
@@ -204,7 +206,7 @@ test("production setup rejects a payload that is not the MediaDrop MSI", { skip:
       ),
     );
   } finally {
-    rmSync(tempRoot, { recursive: true, force: true });
+    removeTempRoot(tempRoot);
   }
 });
 
@@ -250,7 +252,7 @@ test("real custom UI drives broker cancellation, rollback, retry, success, and c
       );
     }
   } finally {
-    rmSync(tempRoot, { recursive: true, force: true });
+    removeTempRoot(tempRoot);
   }
 });
 
@@ -281,6 +283,6 @@ test("production setup compiles from the real MediaDrop MSI", { skip: process.pl
     assert.notEqual(setupBytes.indexOf(Buffer.from("asInvoker")), -1);
     assert.equal(setupBytes.indexOf(Buffer.from("MEDIADROP_INSTALLER_TEST_ENGINE_SCENARIO")), -1);
   } finally {
-    rmSync(tempRoot, { recursive: true, force: true });
+    removeTempRoot(tempRoot);
   }
 });
