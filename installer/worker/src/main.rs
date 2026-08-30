@@ -81,7 +81,7 @@ fn parse_pairs(arguments: Vec<OsString>) -> Result<HashMap<String, OsString>, ()
         return Err(());
     }
     let mut values = HashMap::new();
-    for pair in arguments.chunks_exact(2) {
+    for pair in arguments.as_chunks::<2>().0 {
         let key = pair[0].to_str().ok_or(())?.to_owned();
         if !key.starts_with("--") || values.insert(key, pair[1].clone()).is_some() {
             return Err(());
