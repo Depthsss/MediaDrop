@@ -457,8 +457,10 @@ fn decode_utf16(bytes: &[u8]) -> io::Result<String> {
         ));
     }
     let units = bytes[2..]
-        .chunks_exact(2)
-        .map(|pair| u16::from_le_bytes([pair[0], pair[1]]));
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u16::from_le_bytes(*pair));
     char::decode_utf16(units)
         .collect::<Result<String, _>>()
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "invalid UTF-16 status"))
