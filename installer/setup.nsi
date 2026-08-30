@@ -322,6 +322,9 @@ Function .onInit
     ${EndIf}
     System::Call 'kernel32::CloseHandle(p $1) i .r2'
   ${EndIf}
+!ifdef LIFECYCLE_TEST_MODE
+  StrCpy $StartedElevated 0
+!endif
 
   StrCpy $MotionEnabled 1
   System::Call 'user32::SystemParametersInfoW(i 0x1042, i 0, *i .r0, i 0) i .r1'
