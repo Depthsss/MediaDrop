@@ -15,10 +15,13 @@ function eventHook() {
   };
 }
 
-function fakeRuntime() {
+function fakeRuntime(responseFor = null, extensionVersion = "1.0.1") {
   const ports = [];
   return {
     ports,
+    getManifest() {
+      return { version: extensionVersion };
+    },
     connectNative(name) {
       const onMessage = eventHook();
       const onDisconnect = eventHook();
@@ -29,18 +32,25 @@ function fakeRuntime() {
         sent: [],
         postMessage(message) {
           this.sent.push(message);
-          queueMicrotask(() =>
-            onMessage.emit({
+          queueMicrotask(() => {
+            const response = responseFor?.(message) || {
               messageType: "response",
               protocolVersion: 1,
               requestId: message.requestId,
               command: message.command,
               status: "accepted",
-              payload: message.command === "hello" ? { selectedProtocol: 1 } : {},
+              payload: message.command === "hello"
+                ? {
+                    selectedProtocol: 1,
+                    appVersion: extensionVersion,
+                    hostVersion: extensionVersion,
+                  }
+                : {},
               capabilities: {},
               error: null,
-            }),
-          );
+            };
+            onMessage.emit(response);
+          });
         },
         disconnect() {
           onDisconnect.emit();
@@ -78,4 +88,53 @@ test("disconnect drops pending state and the next call performs a fresh handshak
 
   assert.equal(runtime.ports.length, 2);
   assert.deepEqual(runtime.ports[1].sent.map((message) => message.command), ["hello", "get_state"]);
+});
+
+test("native client preserves the host's one-click extension reload instruction", async () => {
+  const runtime = fakeRuntime((message) => ({
+    messageType: "response",
+    protocolVersion: 1,
+    requestId: message.requestId,
+    command: message.command,
+    status: "version_mismatch",
+    payload: { expectedExtensionVersion: "1.0.2" },
+    capabilities: {},
+    error: {
+      code: "version_mismatch",
+      message: "Eklenti dosyaları yenilendi.",
+      action: "reload_extension",
+    },
+  }));
+  const client = new NativeClient(runtime, "com.mab.mediadrop", () => "00000000-0000-4000-8000-000000000001");
+
+  await assert.rejects(client.connect(), (error) => {
+    assert.equal(error.code, "version_mismatch");
+    assert.equal(error.action, "reload_extension");
+    assert.equal(error.expectedExtensionVersion, "1.0.2");
+    return true;
+  });
+});
+
+test("native client rejects an older host before sending an app command", async () => {
+  const runtime = fakeRuntime((message) => ({
+    messageType: "response",
+    protocolVersion: 1,
+    requestId: message.requestId,
+    command: message.command,
+    status: "accepted",
+    payload: message.command === "hello"
+      ? { selectedProtocol: 1, appVersion: "1.0.0", hostVersion: "1.0.0" }
+      : {},
+    capabilities: {},
+    error: null,
+  }));
+  const client = new NativeClient(runtime, "com.mab.mediadrop", () => "00000000-0000-4000-8000-000000000001");
+
+  await assert.rejects(client.call("open_app"), (error) => {
+    assert.equal(error.code, "version_mismatch");
+    assert.equal(error.action, "update_app_or_extension");
+    assert.equal(error.expectedExtensionVersion, "1.0.1");
+    return true;
+  });
+  assert.deepEqual(runtime.ports[0].sent.map((message) => message.command), ["hello"]);
 });

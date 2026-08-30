@@ -50,9 +50,11 @@ test("extension setup is reachable, accessible, and backed by fixed native comma
   assert.match(html, /id="extensionSetupBtn"/);
   assert.match(html, /id="extensionSetupOverlay"[^>]+role="dialog"/);
   assert.match(html, /aria-labelledby="extensionSetupTitle"/);
+  assert.match(html, /id="extensionRevealPathBtn"/);
   assert.match(bootstrap, /invoke\("get_extension_setup_info"\)/);
   assert.match(bootstrap, /invoke\("open_extension_setup"/);
   assert.match(bootstrap, /invoke\("take_extension_setup_request"\)/);
+  assert.match(bootstrap, /extensionRevealPathBtn\?\.addEventListener\("click"/);
   assert.match(bootstrap, /modalController\.register\("extension-setup"/);
   assert.match(styles, /extension-setup\.css/);
 });

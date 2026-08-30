@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "MediaDrop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "identifier": "com.mab.mediadrop",
   "build": {
     "frontendDist": "../src",
-    "beforeDevCommand": "npm run extension:build:dev",
-    "beforeBuildCommand": "npm run extension:build"
+    "beforeDevCommand": "npm run prepare:tauri:dev",
+    "beforeBuildCommand": "npm run prepare:tauri:build"
   },
   "app": {
     "withGlobalTauri": true,
@@ -52,7 +52,8 @@
       "binaries/aria2c",
       "binaries/ffmpeg",
       "binaries/ffprobe",
-      "binaries/deno"
+      "binaries/deno",
+      "binaries/mediadrop-component-worker"
     ],
     "icon": [
       "icons/32x32.png",

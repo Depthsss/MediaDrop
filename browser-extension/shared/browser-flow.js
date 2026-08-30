@@ -86,6 +86,18 @@ export function readyStateForReturn(state) {
   };
 }
 
+export function pendingStateForAction(action, state) {
+  return ["open_app", "advanced"].includes(action)
+    ? { ...state, status: "app_starting", error: null }
+    : state;
+}
+
+export function completedStateForAction(command, response, sourceState) {
+  return command === "open_advanced" && response?.status === "accepted"
+    ? { ...sourceState, status: "app_opened", error: null }
+    : response;
+}
+
 export function advancedIntentForAction(action, site) {
   return action === "download_post" && site === "twitter" ? "download_twitter_post" : null;
 }
@@ -99,15 +111,17 @@ export function bridgeFailure(error, command, requestId) {
     command,
     status: code === "version_mismatch" ? "version_mismatch" : "error",
     stateRevision: 0,
-    payload: {},
+    payload: error?.expectedExtensionVersion
+      ? { expectedExtensionVersion: error.expectedExtensionVersion }
+      : {},
     capabilities: {},
     error: {
       code,
-      message: code === "version_mismatch"
+      message: error?.message || (code === "version_mismatch"
         ? "MediaDrop ve eklenti protokol sürümleri uyumlu değil."
-        : "MediaDrop masaüstü bağlantısı kurulamadı.",
+        : "MediaDrop masaüstü bağlantısı kurulamadı."),
       retryable: code !== "version_mismatch",
-      action: code === "version_mismatch" ? "update_app_or_extension" : "open_app",
+      action: error?.action || (code === "version_mismatch" ? "update_app_or_extension" : "open_app"),
       reportId: null,
     },
   };

@@ -19,11 +19,14 @@ const AUTH_ACTIONS = new Set([
   "request_instagram_auth",
   "refresh_instagram_auth",
   "request_cookie_permission",
-  "restart_browser",
+  "request_browser_restart",
 ]);
 
-const COOKIE_PREPARE_RESTART_CODES = new Set(["instagram_browser_locked", "browser_restart_required"]);
-const COOKIE_PREPARE_FORCE_CLOSE_CODES = new Set(["browser_still_running"]);
+const COOKIE_PREPARE_CLOSE_CODES = new Set([
+  "instagram_browser_locked",
+  "browser_restart_required",
+  "browser_still_running",
+]);
 
 function normalizedSignal(value) {
   return String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
@@ -32,9 +35,11 @@ function normalizedSignal(value) {
 export function instagramInitialAuthMode({
   isStory = false,
   hasSavedCookies = false,
+  forcePrompt = false,
   publicMode = "public",
   savedMode = "saved:instagram",
 } = {}) {
+  if (forcePrompt) return null;
   if (hasSavedCookies) return savedMode;
   return isStory ? null : publicMode;
 }
@@ -52,6 +57,7 @@ export function isInstagramAuthRecoverySignal({ code = "", action = "", message 
   const text = String(message || "").toLowerCase();
   return (
     text.includes("failed to decrypt") ||
+    text.includes("redirect to login page") ||
     text.includes("cookie anahtarı bulunamadı") ||
     text.includes("cookie anahtari bulunamadi") ||
     text.includes("cookie veritabanı kilitli") ||
@@ -82,6 +88,36 @@ export function nextInstagramAuthRecoveryStep({
   return Number(promptAttempts) < 1 ? "prompt" : "stop";
 }
 
+export async function recoverInstagramDownloadAuth(error, {
+  requestAuth,
+  refreshAnalysis,
+} = {}) {
+  if (!AUTH_CODES.has(normalizedSignal(error?.code))) return false;
+  const authMode = await requestAuth(error);
+  await refreshAnalysis(authMode);
+  return true;
+}
+
+export async function executeInstagramDownloadWithRecovery({
+  executeDownload,
+  requestAuth,
+  refreshAnalysis,
+} = {}) {
+  try {
+    return { result: await executeDownload(), recovered: false };
+  } catch (error) {
+    if (!AUTH_CODES.has(normalizedSignal(error?.code))) throw error;
+
+    try {
+      await recoverInstagramDownloadAuth(error, { requestAuth, refreshAnalysis });
+    } catch {
+      throw error;
+    }
+
+    return { result: null, recovered: true };
+  }
+}
+
 export function consumeInstagramAuthPromptBudget({
   promptAttempts = 0,
   maxPrompts = 1,
@@ -96,18 +132,11 @@ export function consumeInstagramAuthPromptBudget({
 
 export function nextInstagramCookiePrepareStep({
   code = "",
-  restartPromptAttempts = 0,
   forcePromptAttempts = 0,
 } = {}) {
   const normalizedCode = normalizedSignal(code);
-  const restartAttempts = Math.max(0, Number(restartPromptAttempts) || 0);
   const forceAttempts = Math.max(0, Number(forcePromptAttempts) || 0);
-
-  if (COOKIE_PREPARE_FORCE_CLOSE_CODES.has(normalizedCode)) {
-    return restartAttempts > 0 && forceAttempts < 1 ? "force-close" : "stop";
-  }
-  if (COOKIE_PREPARE_RESTART_CODES.has(normalizedCode)) {
-    return restartAttempts < 1 ? "restart" : "stop";
-  }
-  return "stop";
+  return COOKIE_PREPARE_CLOSE_CODES.has(normalizedCode) && forceAttempts < 1
+    ? "force-close"
+    : "stop";
 }

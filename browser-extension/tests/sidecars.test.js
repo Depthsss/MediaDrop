@@ -18,6 +18,7 @@ test("sidecar lock describes every bundled executable without repository binarie
     "ffprobe-x86_64-pc-windows-msvc.exe",
     "gallery-dl-x86_64-pc-windows-msvc.exe",
     "instaloader-helper-x86_64-pc-windows-msvc.exe",
+    "mediadrop-component-worker-x86_64-pc-windows-msvc.exe",
     "yt-dlp-x86_64-pc-windows-msvc.exe",
   ];
 
@@ -25,8 +26,8 @@ test("sidecar lock describes every bundled executable without repository binarie
   for (const item of lock.sidecars) {
     assert.match(item.version, /\S/);
     if (item.buildScript) {
-      assert.equal(item.name, "instaloader-helper");
-      assert.match(item.buildScript, /^tools\/instagram-helper\/build\.ps1$/);
+      assert.match(item.name, /^(instaloader-helper|mediadrop-component-worker)$/);
+      assert.match(item.buildScript, /^tools\/(instagram-helper|component-worker)\/build\.ps1$/);
       assert.equal(item.url, undefined);
       assert.equal(item.sha256, undefined);
     } else {
@@ -53,7 +54,7 @@ test("sidecar preparation verifies the exact local release inputs", () => {
   );
 
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  assert.match(result.stdout, /7 sidecars verified/);
+  assert.match(result.stdout, /8 sidecars verified/);
 });
 
 test("a source-built sidecar is created without a future release download", async () => {

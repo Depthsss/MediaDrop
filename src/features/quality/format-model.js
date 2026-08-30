@@ -117,10 +117,10 @@ export function buildYoutubeFormatCards(info) {
   for (const item of rawFormats) {
     if (
       !item ||
+      !String(item.format_id ?? "").trim() ||
       item.vcodec === "none" ||
       !item.vcodec ||
-      !item.height ||
-      (item.protocol !== "https" && !String(item.protocol || "").includes("m3u8"))
+      Number(item.height) <= 0
     ) {
       continue;
     }

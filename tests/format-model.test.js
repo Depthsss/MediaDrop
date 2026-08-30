@@ -53,6 +53,29 @@ test("YouTube HLS video remains selectable so clip controls stay available", () 
   assert.equal(cards[0].autoSelect, true);
 });
 
+test("YouTube DASH video remains the auto-selected quality instead of falling back to MP3", () => {
+  const cards = buildFormatCards(
+    {
+      formats: [
+        {
+          format_id: "137",
+          height: 1080,
+          vcodec: "avc1.640028",
+          acodec: "none",
+          protocol: "http_dash_segments",
+          ext: "mp4",
+        },
+        { format_id: "140", vcodec: "none", acodec: "mp4a.40.2", ext: "m4a", abr: 128 },
+      ],
+    },
+    "youtube",
+  );
+
+  assert.equal(cards[0].type, "video");
+  assert.equal(cards[0].id, "137");
+  assert.equal(cards[0].autoSelect, true);
+});
+
 test("large file estimates never override the preferred codec at the same height", () => {
   const cards = buildFormatCards(
     {

@@ -13,12 +13,52 @@ fn cloud_reports_require_explicit_opt_in() {
 
 #[test]
 fn extension_setup_only_opens_known_chromium_pages() {
-    assert_eq!(extension_browser_url("opera_gx"), Some("opera://extensions"));
-    assert_eq!(extension_browser_url("opera"), Some("opera://extensions"));
+    assert_eq!(extension_browser_url("opera_gx"), Some("opera:extensions"));
+    assert_eq!(extension_browser_url("opera"), Some("opera:extensions"));
     assert_eq!(extension_browser_url("chrome"), Some("chrome://extensions"));
     assert_eq!(extension_browser_url("edge"), Some("edge://extensions"));
     assert_eq!(extension_browser_url("firefox"), None);
     assert_eq!(extension_browser_url("../../cmd.exe"), None);
+}
+
+#[test]
+fn extension_setup_launches_opera_without_an_internal_page_argument() {
+    assert_eq!(extension_browser_launch_page("opera_gx"), Some(None));
+    assert_eq!(extension_browser_launch_page("opera"), Some(None));
+    assert_eq!(
+        extension_browser_launch_page("chrome"),
+        Some(Some("chrome://extensions"))
+    );
+    assert_eq!(
+        extension_browser_launch_page("edge"),
+        Some(Some("edge://extensions"))
+    );
+    assert_eq!(extension_browser_launch_page("firefox"), None);
+}
+
+#[test]
+fn extension_setup_detects_program_files_opera_launchers() {
+    let local = Path::new(r"C:\Users\User\AppData\Local");
+    let program_files = Path::new(r"C:\Program Files");
+    let program_files_x86 = Path::new(r"C:\Program Files (x86)");
+
+    let gx = cookie_browser_executable_candidates_for_roots(
+        "opera_gx",
+        Some(local),
+        Some(program_files),
+        Some(program_files_x86),
+    );
+    let opera = cookie_browser_executable_candidates_for_roots(
+        "opera",
+        Some(local),
+        Some(program_files),
+        Some(program_files_x86),
+    );
+
+    assert!(gx.contains(&program_files.join("Opera GX").join("launcher.exe")));
+    assert!(gx.contains(&program_files_x86.join("Opera GX").join("launcher.exe")));
+    assert!(opera.contains(&program_files.join("Opera").join("launcher.exe")));
+    assert!(opera.contains(&program_files_x86.join("Opera").join("launcher.exe")));
 }
 
 #[test]
@@ -141,6 +181,16 @@ fn ytdlp_commands_ignore_external_config_and_plugins() {
     assert_eq!(args, ["--ignore-config", "--no-plugin-dirs"]);
 }
 
+#[cfg(target_os = "windows")]
+#[test]
+fn youtube_curl_is_resolved_from_the_windows_system_directory() {
+    let path = windows_system_tool_path("curl.exe").expect("Windows system curl");
+
+    assert!(path.is_absolute());
+    assert_eq!(path.file_name().and_then(OsStr::to_str), Some("curl.exe"));
+    assert!(windows_system_tool_path(r"..\curl.exe").is_none());
+}
+
 #[test]
 fn youtube_download_commands_keep_tls_checks_and_use_structured_progress() {
     let tools = RuntimeTools {
@@ -148,14 +198,21 @@ fn youtube_download_commands_keep_tls_checks_and_use_structured_progress() {
         aria2c: PathBuf::from("aria2c.exe"),
         ffmpeg_dir: PathBuf::from("runtime"),
     };
-    let attempts = make_youtube_attempts("video", "137", "1080p", false, false);
+    let attempts = make_youtube_attempts(
+        "video",
+        "137",
+        "1080p",
+        false,
+        false,
+        Some(Path::new(r"C:\Windows\System32\curl.exe")),
+    );
 
     assert!(!attempts
         .iter()
         .any(|attempt| attempt.label.to_lowercase().contains("sertifika")));
 
     for attempt in attempts {
-        let external_downloader = attempt.external_downloader;
+        let external_downloader = attempt.external_downloader.clone();
         let command = build_download_command(
             &tools,
             Path::new("downloads"),
@@ -184,6 +241,138 @@ fn youtube_download_commands_keep_tls_checks_and_use_structured_progress() {
                 .any(|pair| pair == ["--downloader", "dash,m3u8:native"]));
         }
     }
+}
+
+#[test]
+fn youtube_curl_rescue_caps_tls_and_keeps_segment_downloads_native() {
+    let tools = RuntimeTools {
+        yt_dlp: PathBuf::from("yt-dlp.exe"),
+        aria2c: PathBuf::from("aria2c.exe"),
+        ffmpeg_dir: PathBuf::from("runtime"),
+    };
+    let mut attempt = download_attempt("YouTube TLS 1.2 uyumluluk modu", "137+bestaudio");
+    let system_curl = PathBuf::from(r"C:\Windows\System32\curl.exe");
+    attempt.external_downloader = ExternalDownloader::Curl(system_curl.clone());
+
+    let command = build_download_command(
+        &tools,
+        Path::new("downloads"),
+        "video.%(ext)s",
+        "video",
+        &attempt,
+        None,
+    );
+    let args = command
+        .get_args()
+        .map(|arg| arg.to_string_lossy().to_string())
+        .collect::<Vec<_>>();
+
+    assert!(args
+        .windows(2)
+        .any(|pair| pair == ["--downloader", "dash,m3u8:native"]));
+    assert!(args.windows(2).any(|pair| {
+        pair[0] == "--downloader" && pair[1] == system_curl.to_string_lossy()
+    }));
+    let curl_args = args
+        .windows(2)
+        .find(|pair| pair[0] == "--downloader-args")
+        .map(|pair| pair[1].as_str())
+        .expect("curl downloader args");
+    assert!(curl_args.contains("--http1.1"));
+    assert!(curl_args.contains("--tls-max 1.2"));
+}
+
+#[test]
+fn youtube_tls_compatibility_attempt_is_explicitly_direct_https_only() {
+    let attempt = make_youtube_attempts(
+        "video",
+        "137",
+        "1080p",
+        false,
+        false,
+        Some(Path::new(r"C:\Windows\System32\curl.exe")),
+    )
+    .into_iter()
+    .find(|attempt| matches!(attempt.external_downloader, ExternalDownloader::Curl(_)))
+    .expect("direct HTTPS TLS 1.2 compatibility attempt");
+
+    assert_eq!(attempt.label, "YouTube direct HTTPS / TLS 1.2 uyumluluk modu");
+    assert!(!attempt.label.to_lowercase().contains("dash"));
+    assert!(!attempt.label.to_lowercase().contains("hls"));
+}
+
+#[test]
+fn youtube_tries_tls12_before_repeating_other_network_paths() {
+    let attempts = make_youtube_attempts(
+        "video",
+        "137",
+        "1080p",
+        false,
+        false,
+        Some(Path::new(r"C:\Windows\System32\curl.exe")),
+    );
+    let tls12_index = attempts
+        .iter()
+        .position(|attempt| matches!(attempt.external_downloader, ExternalDownloader::Curl(_)))
+        .expect("TLS 1.2 curl rescue");
+    let chunk_index = attempts
+        .iter()
+        .position(|attempt| attempt.http_chunk_size.is_some())
+        .expect("HTTP chunk rescue");
+
+    assert!(tls12_index < chunk_index);
+}
+
+#[test]
+fn youtube_network_failure_is_not_mislabeled_as_missing_format() {
+    let mixed_error = "[SSL: INVALID_SESSION_ID] invalid session id\nERROR: Requested format is not available";
+
+    assert_eq!(friendly_media_access_error("YouTube", mixed_error), None);
+    assert!(user_friendly_download_error(
+        true,
+        &[("Stabil mod".to_string(), mixed_error.to_string())]
+    )
+    .contains("googlevideo CDN"));
+}
+
+#[test]
+fn youtube_tls_only_failure_is_not_mislabeled_as_missing_format() {
+    let tls_error = "[SSL: INVALID_SESSION_ID] invalid session id";
+
+    assert_eq!(friendly_media_access_error("YouTube", tls_error), None);
+    assert!(user_friendly_download_error(
+        true,
+        &[("Stabil mod".to_string(), tls_error.to_string())]
+    )
+    .contains("googlevideo CDN"));
+}
+
+#[test]
+fn youtube_tls_diagnosis_limits_tls12_compatibility_to_direct_https() {
+    let diagnosis = user_friendly_download_error(
+        true,
+        &[(
+            "YouTube direct HTTPS / TLS 1.2 uyumluluk modu".to_string(),
+            "[SSL: INVALID_SESSION_ID] invalid session id".to_string(),
+        )],
+    );
+
+    assert!(diagnosis.contains("Direct HTTPS aktarımı için TLS 1.2 uyumluluk denendi"));
+    assert!(diagnosis.contains("DASH/HLS veya segmentli aktarım bu yöntemle kurtarılmaz"));
+}
+
+#[test]
+fn youtube_format_only_failure_remains_a_format_selection_error() {
+    let format_error = "ERROR: Requested format is not available";
+
+    assert!(friendly_media_access_error("YouTube", format_error)
+        .expect("format-only error")
+        .contains("uygun format bulunamadı"));
+    assert!(!user_friendly_download_error(
+        true,
+        &[("Stabil mod".to_string(), format_error.to_string())]
+    )
+    .contains("googlevideo CDN"));
 }
 
 #[test]
@@ -664,17 +853,22 @@ fn runtime_tool_replaces_a_same_size_corrupt_ytdlp_copy() {
 }
 
 #[test]
-fn report_sanitizer_redacts_signed_url_query_values() {
+fn report_sanitizer_removes_all_url_query_fragment_and_profile_values() {
     let text = sanitize_report_text(
-        "https://example.test/video?id=abc&sig=secret&n=token&keep=value#frag",
+        "https://example.test/video?id=abc&sig=secret&n=token&keep=value#frag https://rr2---sn-ab5szn7s.googlevideo.com/videoplayback?expire=123&sig=signed-googlevideo-token&lsig=another-token C:\\Users\\FakeProfile\\AppData\\Local\\Browser",
     );
 
-    assert!(text.contains("id=abc"));
-    assert!(text.contains("sig=REDACTED"));
-    assert!(text.contains("n=REDACTED"));
-    assert!(text.contains("keep=value#frag"));
+    assert!(text.contains("https://example.test/video"));
+    assert!(!text.contains("id=abc"));
+    assert!(!text.contains("sig=secret"));
+    assert!(!text.contains("keep=value"));
+    assert!(!text.contains("#frag"));
     assert!(!text.contains("secret"));
     assert!(!text.contains("token"));
+    assert!(!text.contains("googlevideo.com"));
+    assert!(!text.contains("signed-googlevideo-token"));
+    assert!(!text.contains("another-token"));
+    assert!(!text.contains("FakeProfile"));
 }
 
 #[test]
@@ -736,6 +930,23 @@ fn gallery_json_normalizes_photo_carousel_and_story_items() {
     assert!(items[2].is_story);
     assert_eq!(items[2].extension, "avif");
     assert_eq!(media_content_kind(&items), "carousel");
+}
+
+#[test]
+fn instagram_gallery_login_redirect_is_an_auth_failure() {
+    let stdout = r#"[
+      [-1, {
+        "error": "AbortExtraction",
+        "message": "HTTP redirect to login page (https://www.instagram.com/accounts/login/)"
+      }]
+    ]"#;
+
+    let error = match gallery_stdout_to_inventory(stdout, "instagram", "Instagram gönderisi") {
+        Err(error) => error,
+        Ok(_) => panic!("login redirect must not become an empty media result"),
+    };
+
+    assert!(gallery_error_indicates_auth_failure(&error));
 }
 
 #[test]
@@ -1121,6 +1332,11 @@ fn instagram_highlight_gallery_records_are_not_active_stories() {
         Some("instagram_highlight_unsupported".to_string())
     );
     assert!(error.contains("instagram_highlight_unsupported"));
+    let reported = format!("{}\n\nHata raporu oluşturuldu: C:\\Reports\\instagram.txt", error);
+    assert_eq!(
+        structured_backend_error_code(&reported),
+        Some("instagram_highlight_unsupported".to_string())
+    );
 
     let stdout = r#"
 {"url":"https://scontent.cdninstagram.com/v/t51.29350-15/fixture-highlight.jpg","extension":"jpg","type":"highlight","id":"fixture-highlight"}
@@ -2343,8 +2559,68 @@ fn story_error_classifier_keeps_auth_parser_and_access_failures_distinct() {
     );
     assert_eq!(
         instagram_story_error_code("AuthenticationError: login required"),
-        None
+        Some("instagram_auth_required")
     );
+}
+
+#[test]
+fn instagram_login_evidence_wins_over_a_403_but_private_403_stays_access_denied() {
+    assert_eq!(
+        instagram_story_error_code("HTTP 403 Forbidden after redirect to login page"),
+        Some("instagram_auth_required")
+    );
+    assert_eq!(
+        instagram_story_error_code("HTTP 403 Forbidden: private profile"),
+        Some("instagram_story_access_denied")
+    );
+}
+
+#[test]
+fn instagram_cookie_boundary_errors_remain_typed() {
+    assert_eq!(
+        ApiError::from(instagram_cookie_boundary_error(
+            "Kayitli Instagram oturumunun suresi dolmus."
+        ))
+        .code,
+        "instagram_auth_expired"
+    );
+    assert_eq!(
+        ApiError::from(instagram_cookie_boundary_error(
+            "Chromium cookie deÅŸifre edilemedi."
+        ))
+        .code,
+        "instagram_cookie_invalid"
+    );
+}
+
+#[test]
+fn instagram_saved_cookie_read_and_dpapi_failures_stay_typed_and_redacted() {
+    for message in [
+        "Kayitli cookie verisi bos.",
+        "Kayitli Instagram cookie verisi acilamadi.",
+        "Kayitli Instagram cookie verisi okunamadi: C:\\Users\\FakeProfile\\Cookies: access denied",
+    ] {
+        let error = ApiError::from(sanitize_report_text(&instagram_cookie_boundary_error(message)));
+        assert_eq!(error.code, "instagram_cookie_invalid");
+        assert_eq!(error.action.as_deref(), Some("request_cookie_permission"));
+        assert!(!error.message.contains("FakeProfile"));
+    }
+
+    let typed = structured_backend_error("instagram_browser_locked", "Cookie database locked");
+    assert_eq!(instagram_cookie_boundary_error(&typed), typed);
+}
+
+#[test]
+fn instagram_batch_auth_failures_are_not_partial_results() {
+    assert!(media_batch_failure_requires_auth_recovery(
+        &structured_backend_error("instagram_auth_required", "Instagram login required")
+    ));
+    assert!(media_batch_failure_requires_auth_recovery(
+        &structured_backend_error("instagram_auth_expired", "Saved session expired")
+    ));
+    assert!(!media_batch_failure_requires_auth_recovery(
+        &structured_backend_error("instagram_story_access_denied", "Private profile")
+    ));
 }
 
 #[test]

@@ -407,11 +407,20 @@ test("Instagram auth policy starts public posts silently and requires auth for s
   assert.equal(instagramInitialAuthMode({ isStory: false, hasSavedCookies: false }), "public");
   assert.equal(instagramInitialAuthMode({ isStory: false, hasSavedCookies: true }), "saved:instagram");
   assert.equal(instagramInitialAuthMode({ isStory: true, hasSavedCookies: false }), null);
+  assert.equal(
+    instagramInitialAuthMode({
+      isStory: false,
+      hasSavedCookies: true,
+      forcePrompt: true,
+    }),
+    null
+  );
 });
 
 test("Instagram auth recovery ignores parser/not-found failures and accepts explicit auth signals", () => {
   assert.equal(isInstagramAuthRecoverySignal({ code: "instagram_auth_required" }), true);
   assert.equal(isInstagramAuthRecoverySignal({ action: "request_cookie_permission" }), true);
+  assert.equal(isInstagramAuthRecoverySignal({ action: "request_browser_restart" }), true);
   assert.equal(
     isInstagramAuthRecoverySignal({ code: "instagram_story_not_found", message: "oturum bulunamadı gibi içerik" }),
     false
@@ -419,6 +428,12 @@ test("Instagram auth recovery ignores parser/not-found failures and accepts expl
   assert.equal(isInstagramAuthRecoverySignal({ code: "instagram_schema_error", message: "admin" }), false);
   assert.equal(isInstagramAuthRecoverySignal({ code: "instagram_highlight_unsupported" }), false);
   assert.equal(isInstagramAuthRecoverySignal({ message: "Instagram oturumu bulunamadı" }), true);
+  assert.equal(
+    isInstagramAuthRecoverySignal({
+      message: "gallery-dl: HTTP redirect to login page (https://www.instagram.com/accounts/login/)",
+    }),
+    true
+  );
 });
 
 test("Instagram auth recovery allows at most one refresh followed by one prompt", () => {
@@ -459,26 +474,18 @@ test("Instagram initial Story prompt consumes the shared recovery prompt budget"
   );
 });
 
-test("Instagram cookie preparation restarts only after a typed lock and separates force-close", () => {
-  assert.equal(nextInstagramCookiePrepareStep({ code: "", restartPromptAttempts: 0 }), "stop");
+test("Instagram cookie preparation asks once before directly closing a locked browser", () => {
+  assert.equal(nextInstagramCookiePrepareStep({ code: "", forcePromptAttempts: 0 }), "stop");
   assert.equal(
     nextInstagramCookiePrepareStep({
       code: "browser_restart_required",
-      restartPromptAttempts: 0,
+      forcePromptAttempts: 0,
     }),
-    "restart"
+    "force-close"
   );
   assert.equal(
     nextInstagramCookiePrepareStep({
-      code: "browser_restart_required",
-      restartPromptAttempts: 1,
-    }),
-    "stop"
-  );
-  assert.equal(
-    nextInstagramCookiePrepareStep({
-      code: "browser_still_running",
-      restartPromptAttempts: 1,
+      code: "instagram_browser_locked",
       forcePromptAttempts: 0,
     }),
     "force-close"
@@ -486,7 +493,13 @@ test("Instagram cookie preparation restarts only after a typed lock and separate
   assert.equal(
     nextInstagramCookiePrepareStep({
       code: "browser_still_running",
-      restartPromptAttempts: 1,
+      forcePromptAttempts: 0,
+    }),
+    "force-close"
+  );
+  assert.equal(
+    nextInstagramCookiePrepareStep({
+      code: "browser_still_running",
       forcePromptAttempts: 1,
     }),
     "stop"

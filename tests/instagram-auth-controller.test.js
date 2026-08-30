@@ -208,14 +208,18 @@ function fakeAuthElement({ autoClick = false, onClickListener = null } = {}) {
   };
 }
 
-function restartDialogElements({ autoApprove = false, confirmations = [] } = {}) {
+function restartDialogElements({ autoApprove = false, confirmations = [], statuses = [] } = {}) {
+  const browserRestartStatus = fakeAuthElement();
   return {
     browserRestartOverlay: fakeAuthElement(),
     browserRestartTitle: fakeAuthElement(),
-    browserRestartStatus: fakeAuthElement(),
+    browserRestartStatus,
     browserRestartAllowBtn: fakeAuthElement({
       autoClick: autoApprove,
-      onClickListener: (label) => confirmations.push(label),
+      onClickListener: (label) => {
+        confirmations.push(label);
+        statuses.push(browserRestartStatus.textContent);
+      },
     }),
     browserRestartDenyBtn: fakeAuthElement(),
   };
@@ -258,9 +262,10 @@ test("running browser first attempts safe cookie preparation without a restart p
   assert.deepEqual(confirmations, []);
 });
 
-test("typed browser lock gets one graceful restart before an explicit force-close recovery", async () => {
+test("typed browser lock gets one warning before direct close and cookie preparation", async () => {
   const prepareCalls = [];
   const confirmations = [];
+  const statuses = [];
   const invoke = async (command, args) => {
     if (command === "get_cookie_browser_runtime_state") {
       return { label: "Chrome", running: true };
@@ -273,9 +278,6 @@ test("typed browser lock gets one graceful restart before an explicit force-clos
     if (prepareCalls.length === 1) {
       throw { code: "browser_restart_required", message: "Cookie database is locked" };
     }
-    if (prepareCalls.length === 2) {
-      throw { code: "browser_still_running", message: "Browser did not close" };
-    }
     return {
       authMode: "saved:instagram",
       saved: true,
@@ -283,11 +285,12 @@ test("typed browser lock gets one graceful restart before an explicit force-clos
       label: "Chrome",
     };
   };
+  const elements = restartDialogElements({ autoApprove: true, confirmations, statuses });
   const controller = createInstagramAuthController({
     invoke,
     storage: null,
     parseBackendError,
-    elements: restartDialogElements({ autoApprove: true, confirmations }),
+    elements,
   });
 
   await controller.prepareInstagramCookieAuthFromPermission({
@@ -299,11 +302,10 @@ test("typed browser lock gets one graceful restart before an explicit force-clos
     prepareCalls.map(({ restartBrowser, forceClose }) => ({ restartBrowser, forceClose })),
     [
       { restartBrowser: false, forceClose: false },
-      { restartBrowser: true, forceClose: false },
       { restartBrowser: true, forceClose: true },
     ]
   );
-  assert.equal(confirmations.length, 2);
-  assert.match(confirmations[0], /yeniden başlat/i);
-  assert.match(confirmations[1], /zorla kapat/i);
+  assert.deepEqual(confirmations, ["Tarayıcıyı kapat ve devam et"]);
+  assert.match(statuses[0], /kaydet/i);
+  assert.doesNotMatch(statuses[0], /normal şekilde kapanmadı/i);
 });

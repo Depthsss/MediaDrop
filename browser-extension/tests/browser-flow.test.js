@@ -6,7 +6,9 @@ import {
   advancedIntentForAction,
   badgeForStatus,
   bridgeFailure,
+  completedStateForAction,
   grayscaleRgba,
+  pendingStateForAction,
   readyStateForReturn,
   resultActionForState,
   shouldAnalyzeActiveTab,
@@ -67,6 +69,25 @@ test("completed work can return to the same ready analysis without retaining the
   assert.equal(readyStateForReturn({ status: "completed", payload: {} }), null);
 });
 
+test("opening the desktop app replaces a stale technical error with a starting state", () => {
+  const source = {
+    status: "needs_user",
+    payload: { analysisRequestId: "analysis-1" },
+    error: { message: "gallery-dl SECRET_CANARY" },
+  };
+
+  const pending = pendingStateForAction("advanced", source);
+
+  assert.equal(pending.status, "app_starting");
+  assert.equal(pending.error, null);
+  assert.deepEqual(pending.payload, source.payload);
+  assert.equal(pendingStateForAction("download_all", source), source);
+
+  const opened = completedStateForAction("open_advanced", { status: "accepted" }, source);
+  assert.equal(opened.status, "app_opened");
+  assert.equal(opened.error, null);
+});
+
 test("disabled action icon becomes grayscale without losing transparency", () => {
   const source = new Uint8ClampedArray([
     242, 174, 0, 255,
@@ -107,13 +128,20 @@ test("initial state recovery is scoped to the browser's current page", () => {
 
 test("protocol mismatch is preserved instead of looking like a missing host", () => {
   const failure = bridgeFailure(
-    Object.assign(new Error("mismatch"), { code: "version_mismatch" }),
+    Object.assign(new Error("Eklenti dosyaları yenilendi."), {
+      code: "version_mismatch",
+      action: "reload_extension",
+      expectedExtensionVersion: "1.0.2",
+    }),
     "hello",
     "11111111-1111-4111-8111-111111111111",
   );
   assert.equal(failure.status, "version_mismatch");
   assert.equal(failure.error.code, "version_mismatch");
   assert.equal(failure.error.retryable, false);
+  assert.equal(failure.error.action, "reload_extension");
+  assert.equal(failure.error.message, "Eklenti dosyaları yenilendi.");
+  assert.equal(failure.payload.expectedExtensionVersion, "1.0.2");
   assert.equal(
     bridgeFailure(
       Object.assign(new Error("pipe"), { code: "pipe_disconnected" }),

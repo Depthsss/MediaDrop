@@ -50,6 +50,7 @@ import {
 import { loadRasterImageSource } from "../features/preview/raster-loader.js";
 import {
   consumeInstagramAuthPromptBudget,
+  executeInstagramDownloadWithRecovery,
   instagramInitialAuthMode,
   nextInstagramAuthRecoveryStep,
 } from "../features/instagram/auth-policy.js";
@@ -158,6 +159,7 @@ const extensionSetupCloseBtn = document.querySelector("#extensionSetupCloseBtn")
 const extensionSetupLaterBtn = document.querySelector("#extensionSetupLaterBtn");
 const extensionSetupOpenBtn = document.querySelector("#extensionSetupOpenBtn");
 const extensionCopyPathBtn = document.querySelector("#extensionCopyPathBtn");
+const extensionRevealPathBtn = document.querySelector("#extensionRevealPathBtn");
 const extensionSetupPath = document.querySelector("#extensionSetupPath");
 const extensionSetupMessage = document.querySelector("#extensionSetupMessage");
 const extensionBrowserList = document.querySelector("#extensionBrowserList");
@@ -3633,6 +3635,7 @@ function renderExtensionSetupSteps(browser, connected) {
   const opened = Boolean(browser?.id && openedExtensionBrowserIds.has(browser.id));
   const states = extensionSetupStepStates({ selected: Boolean(browser), opened, connected });
   const browserLabel = browser?.label || "Tarayıcı";
+  const manualNavigation = guide?.launchesInternalPage === false;
   const steps = [
     {
       title: browser ? `${browserLabel} seçildi` : "Tarayıcını seç",
@@ -3641,15 +3644,17 @@ function renderExtensionSetupSteps(browser, connected) {
         : "Kurulu tarayıcılardan birini seç.",
     },
     {
-      title: "Eklenti sayfasını aç",
+      title: manualNavigation ? "Tarayıcıyı aç ve adresi gir" : "Eklenti sayfasını açmayı dene",
       detail: guide
-        ? `${guide.page} açılır ve MediaDrop klasörü panoya kopyalanır.`
+        ? manualNavigation
+          ? `${guide.page} panoya kopyalanır. Adres çubuğuna yapıştır veya ${guide.shortcut} kullan.`
+          : `${guide.page} tarayıcıda açılmak üzere gönderilir.`
         : "Devam etmek için desteklenen bir Chromium tarayıcısı seç.",
     },
     {
-      title: "Paketlenmemiş eklentiyi yükle",
+      title: "Eklentiyi yükle veya yenile",
       detail: guide
-        ? `${guide.developerMode} ${guide.loadUnpacked} Klasör seçiminde Ctrl+L, Ctrl+V ve Enter kullan.`
+        ? `${guide.developerMode} ${guide.loadUnpacked} Yolu kopyala veya Klasörü göster ile doğru dizini seç.`
         : "Seçtiğin tarayıcıya uygun adımlar burada gösterilecek.",
     },
     {
@@ -3696,6 +3701,7 @@ function renderExtensionSetupInfo(info = {}) {
     extensionSetupPath.title = path;
   }
   if (extensionCopyPathBtn) extensionCopyPathBtn.disabled = !path;
+  if (extensionRevealPathBtn) extensionRevealPathBtn.disabled = !path;
   if (extensionSetupOpenBtn) extensionSetupOpenBtn.disabled = !selectedExtensionBrowserId || !path;
   if (extensionBrowserHint) {
     extensionBrowserHint.textContent = installed.length
@@ -3706,9 +3712,12 @@ function renderExtensionSetupInfo(info = {}) {
   const selectedBrowser = browsers.find((browser) => browser.id === selectedExtensionBrowserId) || null;
   renderExtensionSetupSteps(selectedBrowser, info.connected === true);
   if (extensionSetupOpenBtn) {
+    const guide = extensionGuideForBrowser(selectedBrowser?.id);
     extensionSetupOpenBtn.textContent = selectedBrowser
-      ? `${selectedBrowser.label} ile kuruluma başla`
-      : "Tarayıcıda kurulumu aç";
+      ? guide?.launchesInternalPage === false
+        ? `${selectedBrowser.label} tarayıcısını aç`
+        : `${selectedBrowser.label} ile sayfayı aç`
+      : "Tarayıcıyı aç";
   }
 
   extensionBrowserList?.replaceChildren();
@@ -3799,21 +3808,37 @@ async function copyExtensionSetupPath() {
   }
 }
 
+async function revealExtensionSetupPath() {
+  const path = String(extensionSetupInfo?.extensionPath || "").trim();
+  if (!path) return false;
+  const manifestPath = `${path.replace(/[\\/]+$/, "")}\\manifest.json`;
+  try {
+    await invoke("reveal_path", { path: manifestPath });
+    setExtensionSetupMessage("Eklenti klasörü açıldı; manifest.json seçili gösteriliyor.");
+    return true;
+  } catch (error) {
+    setExtensionSetupMessage(parseBackendError(error).message, true);
+    return false;
+  }
+}
+
 async function launchExtensionSetup() {
   if (!selectedExtensionBrowserId || extensionSetupOpenBtn?.disabled) return;
   if (extensionSetupOpenBtn) extensionSetupOpenBtn.disabled = true;
-  if (!(await copyExtensionSetupPath())) {
-    if (extensionSetupOpenBtn) extensionSetupOpenBtn.disabled = false;
-    return;
-  }
+  const guide = extensionGuideForBrowser(selectedExtensionBrowserId);
   try {
+    if (guide?.launchesInternalPage === false) {
+      await writeClipboardText(guide.page);
+    }
     const info = await invoke("open_extension_setup", {
       browserId: selectedExtensionBrowserId,
     });
     openedExtensionBrowserIds.add(selectedExtensionBrowserId);
     renderExtensionSetupInfo(info);
     setExtensionSetupMessage(
-      "Eklenti sayfası açıldı. Gösterilen adımları tamamla; bağlantı otomatik doğrulanacak."
+      guide?.launchesInternalPage === false
+        ? `${guide.page} panoya kopyalandı ve tarayıcı açıldı. Adresi yapıştır veya ${guide.shortcut} kullan.`
+        : `Tarayıcı açıldı. ${guide?.page || "Eklenti sayfası"} görünmediyse adresi elle gir; bağlantı otomatik doğrulanacak.`
     );
   } catch (error) {
     setExtensionSetupMessage(parseBackendError(error).message, true);
@@ -4651,7 +4676,7 @@ function applyCompanionHandoff(payload) {
   if (payload.kind === "reanalyze") {
     urlInput.value = sourceUrl;
     updateUrlClearButton();
-    void analyzeUrl();
+    void analyzeUrl({ forceInstagramAuth: true });
     return true;
   }
   if (payload.kind === "media" && !payload.analysis) return false;
@@ -4853,8 +4878,9 @@ async function analyzeVideoWithBrowserAuth(value) {
   throw new Error(`${platformLabel(platform)} oturumu doğrulanamadı.`);
 }
 
-async function analyzeUrl() {
+async function analyzeUrl(options = {}) {
   const value = urlInput.value.trim();
+  const forceInstagramAuth = options?.forceInstagramAuth === true;
 
   if (["downloading", "pausing", "paused", "canceling"].includes(downloadState)) {
     message.textContent = "Devam eden veya duraklatılmış indirme varken yeni analiz yapılamaz.";
@@ -4915,6 +4941,7 @@ async function analyzeUrl() {
           const policyMode = instagramInitialAuthMode({
             isStory: isInstagramStoryUrl(value),
             hasSavedCookies: Boolean(saved?.hasSavedCookies),
+            forcePrompt: forceInstagramAuth,
             publicMode: PUBLIC_MEDIA_AUTH_MODE,
             savedMode: SAVED_INSTAGRAM_AUTH_MODE,
           });
@@ -4926,7 +4953,12 @@ async function analyzeUrl() {
             if (!promptBudget.allowed) {
               throw new Error("Instagram izin penceresi bu analiz için daha önce gösterildi.");
             }
-            initialAuthMode = await instagramCookieAuthMode();
+            initialAuthMode = await instagramCookieAuthMode({
+              forcePrompt: forceInstagramAuth,
+              error: forceInstagramAuth
+                ? { code: "instagram_auth_required", message: "Instagram oturumu yenilenmeli." }
+                : null,
+            });
           }
         } else {
           initialAuthMode = mediaAuthModeForUrl(value);
@@ -5348,9 +5380,32 @@ async function startOrResumeMediaDownload() {
   message.className = "message";
 
   try {
-    const result = isBatch
-      ? await invoke("download_media_batch", buildMediaBatchDownloadRequest(args))
-      : await invoke("download_media_item", buildMediaItemDownloadRequest(args));
+    const completion = await executeInstagramDownloadWithRecovery({
+      executeDownload: () => isBatch
+        ? invoke("download_media_batch", buildMediaBatchDownloadRequest(args))
+        : invoke("download_media_item", buildMediaItemDownloadRequest(args)),
+      requestAuth: async (authError) => {
+        clearInstagramCookieConsent({ clearBackend: false });
+        return instagramCookieAuthMode({
+          forcePrompt: true,
+          error: authError,
+          avoidBrowserId: browserIdFromInstagramAuthMode(currentMediaAuthMode),
+        });
+      },
+      refreshAnalysis: async (authMode) => {
+        const refreshed = await tryAnalyzeMedia(currentUrl, authMode);
+        if (!refreshed) throw new Error("Instagram analizi yenilenemedi.");
+        applyMediaAnalysis(refreshed, "instagram", authMode);
+      },
+    });
+
+    if (completion.recovered) {
+      lastMediaDownloadArgs = null;
+      setDownloadState("idle");
+      return;
+    }
+
+    const result = completion.result;
 
     if (downloadState === "canceling") {
       finishCancelledDownload();
@@ -5707,6 +5762,7 @@ extensionSetupBtn?.addEventListener("click", openExtensionSetup);
 extensionSetupCloseBtn?.addEventListener("click", closeExtensionSetup);
 extensionSetupLaterBtn?.addEventListener("click", closeExtensionSetup);
 extensionCopyPathBtn?.addEventListener("click", copyExtensionSetupPath);
+extensionRevealPathBtn?.addEventListener("click", revealExtensionSetupPath);
 extensionSetupOpenBtn?.addEventListener("click", launchExtensionSetup);
 extensionSetupOverlay?.addEventListener("click", (event) => {
   if (event.target?.matches?.("[data-extension-setup-close]")) closeExtensionSetup();

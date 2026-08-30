@@ -45,7 +45,7 @@ test("analysis badges stay scoped to the analyzed tab and its current link", asy
     status: message.command === "hello" ? "accepted" : "ready",
     stateRevision: 1,
     payload: message.command === "hello"
-      ? { selectedProtocol: 1 }
+      ? { selectedProtocol: 1, appVersion: "1.0.0" }
       : { analysisRequestId: message.requestId },
     capabilities: {},
     error: null,

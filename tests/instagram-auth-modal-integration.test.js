@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { createModalController } from "../src/features/accessibility/modal-controller.js";
 import { createInstagramAuthController } from "../src/features/instagram/auth-controller.js";
+import { executeInstagramDownloadWithRecovery } from "../src/features/instagram/auth-policy.js";
 
 function createFakeDocument() {
   const listeners = new Map();
@@ -170,4 +171,55 @@ test("Escape through the real controller resolves cookie and restart Promises wi
   assert.equal(documentRef.listenerCount("click"), 0);
   modalController.dispose();
   assert.equal(documentRef.listenerCount("keydown"), 0);
+});
+
+test("download coordinator recovers typed Instagram auth without retrying the download", async () => {
+  let downloadCalls = 0;
+  let promptCalls = 0;
+  let refreshCalls = 0;
+
+  const recovery = await executeInstagramDownloadWithRecovery({
+    executeDownload: async () => {
+      downloadCalls += 1;
+      throw { code: "instagram_auth_required", message: "Instagram login required" };
+    },
+    requestAuth: async () => {
+      promptCalls += 1;
+      return "saved:instagram";
+    },
+    refreshAnalysis: async (authMode) => {
+      refreshCalls += 1;
+      assert.equal(authMode, "saved:instagram");
+    },
+  });
+
+  assert.equal(recovery.recovered, true);
+  assert.equal(downloadCalls, 1);
+  assert.equal(promptCalls, 1);
+  assert.equal(refreshCalls, 1);
+});
+
+test("cancelled download-time Instagram recovery rethrows the original error without looping", async () => {
+  const original = { code: "instagram_auth_required", message: "Instagram login required" };
+  let downloadCalls = 0;
+  let promptCalls = 0;
+  let refreshCalls = 0;
+
+  await assert.rejects(executeInstagramDownloadWithRecovery({
+    executeDownload: async () => {
+      downloadCalls += 1;
+      throw original;
+    },
+    requestAuth: async () => {
+      promptCalls += 1;
+      throw new Error("Çerez izinlerini reddettiniz.");
+    },
+    refreshAnalysis: async () => {
+      refreshCalls += 1;
+    },
+  }), (error) => error === original);
+
+  assert.equal(downloadCalls, 1);
+  assert.equal(promptCalls, 1);
+  assert.equal(refreshCalls, 0);
 });

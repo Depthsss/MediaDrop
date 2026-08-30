@@ -172,6 +172,20 @@ pub(crate) fn hello_response(request: &RequestEnvelope) -> Result<ResponseEnvelo
         payload.supported_protocol.min,
         payload.supported_protocol.max,
     )?;
+    if payload.extension_version != env!("CARGO_PKG_VERSION") {
+        let mut response = ResponseEnvelope::failure(
+            request,
+            ApiError::new(
+                "version_mismatch",
+                "MediaDrop eklenti dosyaları güncellendi. Eklentiyi bir kez yenile.",
+            )
+            .with_action("reload_extension"),
+        );
+        response.payload = serde_json::json!({
+            "expectedExtensionVersion": env!("CARGO_PKG_VERSION")
+        });
+        return Ok(response);
+    }
     Ok(ResponseEnvelope::success(
         request,
         "accepted",
@@ -182,6 +196,15 @@ pub(crate) fn hello_response(request: &RequestEnvelope) -> Result<ResponseEnvelo
             "hostVersion": env!("CARGO_PKG_VERSION")
         }),
     ))
+}
+
+pub(crate) fn hello_requires_extension_refresh(response: &ResponseEnvelope) -> bool {
+    response.status == "version_mismatch"
+        && response
+            .error
+            .as_ref()
+            .and_then(|error| error.action.as_deref())
+            == Some("reload_extension")
 }
 
 fn valid_extension_origin(value: &str) -> bool {
@@ -922,13 +945,14 @@ mod tests {
                 "requestId": "f8f1374f-5513-4ec4-bf2b-4111b914fc4a",
                 "command": "hello",
                 "clientOrigin": "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-                "payload": {"supportedProtocol":{"min":1,"max":1},"extensionVersion":"1.0.0"}
+                "payload": {"supportedProtocol":{"min":1,"max":1},"extensionVersion":env!("CARGO_PKG_VERSION")}
             }))
             .unwrap(),
         )
         .unwrap();
         let response = hello_response(&request).expect("compatible hello");
         assert_eq!(response.status, "accepted");
+        assert!(!super::hello_requires_extension_refresh(&response));
         assert_eq!(response.payload["selectedProtocol"], 1);
         assert_eq!(response.payload["appVersion"], env!("CARGO_PKG_VERSION"));
         assert_eq!(response.capabilities.analyze_source, true);
@@ -941,6 +965,35 @@ mod tests {
         assert_eq!(response.capabilities.start_media_batch, true);
         assert_eq!(response.capabilities.start_post_export, true);
         assert!(serde_json::to_vec(&response).unwrap().len() < super::MAX_RESPONSE_BYTES);
+    }
+
+    #[test]
+    fn hello_response_requests_extension_reload_when_bundled_files_changed() {
+        let request = parse_request(
+            &serde_json::to_vec(&json!({
+                "messageType": "request",
+                "protocolVersion": 1,
+                "requestId": "f8f1374f-5513-4ec4-bf2b-4111b914fc4a",
+                "command": "hello",
+                "clientOrigin": "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+                "payload": {"supportedProtocol":{"min":1,"max":1},"extensionVersion":"0.9.0"}
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        let response = hello_response(&request).expect("version mismatch response");
+
+        assert_eq!(response.status, "version_mismatch");
+        assert!(super::hello_requires_extension_refresh(&response));
+        assert_eq!(
+            response.payload["expectedExtensionVersion"],
+            env!("CARGO_PKG_VERSION")
+        );
+        assert_eq!(
+            response.error.and_then(|error| error.action).as_deref(),
+            Some("reload_extension")
+        );
     }
 
     #[test]

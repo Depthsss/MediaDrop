@@ -65,6 +65,14 @@
       "sourceUrl": "https://github.com/Depthsss/MediaDrop/tree/v1.0.0/tools/instagram-helper"
     },
     {
+      "name": "mediadrop-component-worker",
+      "version": "1.0.1",
+      "file": "mediadrop-component-worker-x86_64-pc-windows-msvc.exe",
+      "buildScript": "tools/component-worker/build.ps1",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/Depthsss/MediaDrop/tree/v1.0.1/installer/worker"
+    },
+    {
       "name": "yt-dlp",
       "version": "2026.08.18.122307",
       "file": "yt-dlp-x86_64-pc-windows-msvc.exe",

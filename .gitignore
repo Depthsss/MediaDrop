@@ -15,7 +15,11 @@ dist-ssr
 .cache/
 artifacts/
 latest.json
+installer-vm-gate-checklist.json
+*.dmp
 browser-extension/dist/
+installer/worker/target/
+component-update/target/
 src-tauri/binaries/*.exe
 tools/**/__pycache__/
 tools/**/.venv/

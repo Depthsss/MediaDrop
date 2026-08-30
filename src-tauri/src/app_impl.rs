@@ -23,6 +23,7 @@ use tauri::{Emitter, Manager};
 
 mod core;
 mod companion;
+mod component_updates;
 mod downloads;
 mod infra;
 mod instagram;
@@ -90,6 +91,7 @@ pub(crate) use util::url::{
     is_youtube_url, unsupported_media_link_message,
 };
 
+#[cfg(debug_assertions)]
 const FFMPEG_DIR: &str = r"C:\ffmpeg";
 const TARGET_TRIPLE: &str = "x86_64-pc-windows-msvc";
 const MEDIADROP_APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -1194,7 +1196,8 @@ fn compare_dotted_versions(left: &str, right: &str) -> Option<std::cmp::Ordering
 fn runtime_tool_health_args(tool: &str) -> Option<&'static [&'static str]> {
     match tool {
         "ffmpeg" | "ffprobe" => Some(&["-version"]),
-        "aria2c" | "deno" | "gallery-dl" | "yt-dlp" => Some(&["--version"]),
+        "aria2c" | "deno" | "gallery-dl" => Some(&["--version"]),
+        "yt-dlp" => Some(&["--ignore-config", "--no-plugin-dirs", "--version"]),
         _ => None,
     }
 }
@@ -1226,7 +1229,7 @@ fn should_copy_runtime_tool(tool: &str, source: &Path, dest: &Path) -> bool {
             command_first_line_with_timeout(dest, args, DIAGNOSTIC_COMMAND_TIMEOUT).ok();
 
         match (source_version, dest_version) {
-            (Some(_), None) => return true,
+            (_, None) => return true,
             (None, Some(_)) => return false,
             (Some(source_version), Some(dest_version)) if tool == "yt-dlp" => {
                 return compare_dotted_versions(&source_version, &dest_version)
@@ -1311,55 +1314,28 @@ async fn update_ytdlp(app: tauri::AppHandle) -> ApiResult<ToolsUpdateResult> {
 }
 
 fn update_ytdlp_blocking(app: tauri::AppHandle) -> Result<ToolsUpdateResult, String> {
-    let yt_dlp = ensure_runtime_tool(&app, "yt-dlp")?;
-
-    let mut command = ytdlp_command(&yt_dlp);
-    command.arg("-U");
-
-    let output = capture_command_with_timeout(command, Duration::from_secs(45))
-        .map_err(|err| format!("yt-dlp güncelleme kontrolü tamamlanamadı: {}", err))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    let combined = format!("{}\n{}", stdout, stderr).trim().to_string();
-
-    if !output.status.success() {
-        let msg = if combined.is_empty() {
-            "yt-dlp güncelleme başarısız oldu.".to_string()
-        } else {
-            combined.clone()
-        };
-
-        let ctx = ErrorReportContext::new("yt-dlp-update", "yt-dlp -U", &combined)
+    let worker = find_bundled_tool_path(&app, "mediadrop-component-worker")?;
+    let outcome = component_updates::check_for_ytdlp_update(
+        &worker,
+        MEDIADROP_APP_VERSION,
+    )
+    .map_err(|error| {
+        let ctx = ErrorReportContext::new("yt-dlp-component-update", "signed component", &error)
             .platform("Tools")
             .kind("update_ytdlp");
-        let msg = with_error_report(&app, msg, ctx);
-        return Err(msg);
-    }
-
-    let lower = combined.to_lowercase();
-    let updated = lower.contains("updated yt-dlp")
-        || lower.contains("updated to")
-        || lower.contains("successfully updated")
-        || (lower.contains("updating") && !lower.contains("up to date"));
-    if updated {
+        with_error_report(&app, error, ctx)
+    })?;
+    if outcome.updated {
         if let Ok(mut cache) = runtime_tool_cache().lock() {
             cache.remove("yt-dlp");
         }
         invalidate_all_youtube_analyses();
         ensure_runtime_tool(&app, "yt-dlp")?;
     }
-
-    let message = if combined.is_empty() {
-        "yt-dlp kontrol edildi.".to_string()
-    } else {
-        combined
-    };
-
     Ok(ToolsUpdateResult {
         checked: true,
-        updated,
-        message,
+        updated: outcome.updated,
+        message: outcome.message,
     })
 }
 
@@ -1449,6 +1425,10 @@ fn twitter_cookie_analysis_error(
 
 fn friendly_media_access_error(platform: &str, error: &str) -> Option<String> {
     let lower = error.to_lowercase();
+
+    if platform.eq_ignore_ascii_case("youtube") && is_ssl_or_network_error(error) {
+        return None;
+    }
 
     if lower.contains("unsupported url") || lower.contains("not a valid url") {
         return Some(unsupported_media_link_message().to_string());
@@ -1615,65 +1595,9 @@ fn limit_report_text(value: &str, max_chars: usize) -> String {
     )
 }
 
-fn is_sensitive_url_key(key: &str) -> bool {
-    let key = key.trim().trim_start_matches('?').to_ascii_lowercase();
-
-    matches!(
-        key.as_str(),
-        "sig"
-            | "signature"
-            | "lsig"
-            | "token"
-            | "access_token"
-            | "auth"
-            | "authorization"
-            | "cookie"
-            | "key"
-            | "policy"
-            | "expire"
-            | "expires"
-            | "n"
-            | "x-goog-signature"
-            | "x-goog-credential"
-            | "x-goog-policy"
-            | "x-goog-algorithm"
-            | "x-goog-date"
-    ) || key.contains("token")
-        || key.contains("secret")
-        || key.contains("signature")
-        || key.contains("credential")
-}
-
 fn redact_url_query(url: &str) -> String {
-    let Some(query_start) = url.find('?') else {
-        return url.to_string();
-    };
-
-    let (prefix, query_with_marker) = url.split_at(query_start + 1);
-    let query = query_with_marker;
-    let (query, fragment) = query
-        .split_once('#')
-        .map(|(left, right)| (left, Some(right)))
-        .unwrap_or((query, None));
-
-    let redacted_query = query
-        .split('&')
-        .map(|part| {
-            let key = part.split_once('=').map(|(key, _)| key).unwrap_or(part);
-
-            if is_sensitive_url_key(key) {
-                format!("{}=REDACTED", key)
-            } else {
-                part.to_string()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("&");
-
-    match fragment {
-        Some(fragment) => format!("{}{}#{}", prefix, redacted_query, fragment),
-        None => format!("{}{}", prefix, redacted_query),
-    }
+    let end = url.find(['?', '#']).unwrap_or(url.len());
+    url[..end].to_string()
 }
 
 fn redact_url_token(token: &str) -> String {
@@ -1690,7 +1614,15 @@ fn redact_url_token(token: &str) -> String {
         .len();
     let (url, suffix) = url_and_suffix.split_at(trimmed_len);
 
-    format!("{}{}{}", prefix, redact_url_query(url), suffix)
+    let redacted_url = redact_url_query(url);
+    if redacted_url
+        .to_ascii_lowercase()
+        .contains("googlevideo.com/")
+    {
+        format!("{}[signed media URL redacted]{}", prefix, suffix)
+    } else {
+        format!("{}{}{}", prefix, redacted_url, suffix)
+    }
 }
 
 fn redact_sensitive_url_parts(value: &str) -> String {
@@ -1698,6 +1630,31 @@ fn redact_sensitive_url_parts(value: &str) -> String {
         .split_inclusive(|ch: char| ch.is_whitespace())
         .map(redact_url_token)
         .collect::<String>()
+}
+
+fn redact_windows_profile_paths(value: &str) -> String {
+    let mut text = value.to_string();
+    let mut search_start = 0;
+
+    while search_start < text.len() {
+        let lower = text.to_ascii_lowercase();
+        let Some(offset) = lower[search_start..].find(":\\users\\") else {
+            break;
+        };
+        let marker = search_start + offset;
+        if marker == 0 {
+            break;
+        }
+        let username_start = marker + ":\\users\\".len();
+        let username_end = text[username_start..]
+            .find(['\\', '/'])
+            .map(|offset| username_start + offset)
+            .unwrap_or(text.len());
+        text.replace_range(marker - 1..username_end, "%USERPROFILE%");
+        search_start = marker - 1 + "%USERPROFILE%".len();
+    }
+
+    text
 }
 
 fn sanitize_report_text(value: &str) -> String {
@@ -1728,7 +1685,7 @@ fn sanitize_report_text(value: &str) -> String {
         }
     }
 
-    redact_sensitive_url_parts(&text)
+    redact_sensitive_url_parts(&redact_windows_profile_paths(&text))
 }
 
 fn sanitized_path(path: &Path) -> String {
@@ -2238,18 +2195,22 @@ fn read_instagram_session_meta() -> serde_json::Value {
 
 fn materialize_saved_instagram_cookie_file() -> Result<TempArtifact, String> {
     let protected = fs::read(instagram_cookie_store_path()?)
-        .map_err(|err| format!("Kayitli Instagram cookie verisi okunamadi: {}", err))?;
-    let plain = dpapi_unprotect_bytes(&protected)?;
+        .map_err(|err| instagram_cookie_boundary_error(format!("Kayitli Instagram cookie verisi okunamadi: {}", err)))?;
+    let plain = dpapi_unprotect_bytes(&protected).map_err(instagram_cookie_boundary_error)?;
     let text = String::from_utf8(plain)
-        .map_err(|_| "Kayitli Instagram cookie verisi metin formatinda degil.".to_string())?;
+        .map_err(|_| instagram_cookie_boundary_error("Kayitli Instagram cookie verisi metin formatinda degil."))?;
 
     match validate_netscape_instagram_session(&text) {
         SavedInstagramCookieValidation::Ready => {}
         SavedInstagramCookieValidation::Expired => {
-            return Err("Kayitli Instagram oturumunun suresi dolmus.".to_string());
+            return Err(instagram_cookie_boundary_error(
+                "Kayitli Instagram oturumunun suresi dolmus.",
+            ));
         }
         SavedInstagramCookieValidation::Invalid => {
-            return Err("Kayitli Instagram cookie verisi gecersiz veya bos.".to_string());
+            return Err(instagram_cookie_boundary_error(
+                "Kayitli Instagram cookie verisi gecersiz veya bos.",
+            ));
         }
     }
 
@@ -2272,7 +2233,9 @@ fn store_prepared_instagram_cookie_jar(jar: &BrowserCookieJar) -> Result<String,
     let text = cookie_jar_to_netscape(&jar.cookies);
 
     if !netscape_cookie_has_instagram_session(&text) {
-        return Err("Hazirlanan Instagram cookie verisi gecersiz veya bos.".to_string());
+        return Err(instagram_cookie_boundary_error(
+            "Hazirlanan Instagram cookie verisi gecersiz veya bos.",
+        ));
     }
 
     let token = Uuid::new_v4().to_string();
@@ -2292,7 +2255,9 @@ fn store_prepared_instagram_cookie_jar(jar: &BrowserCookieJar) -> Result<String,
 fn materialize_prepared_instagram_cookie_file(token: &str) -> Result<TempArtifact, String> {
     let clean = token.trim();
     if clean.is_empty() {
-        return Err("Gecici Instagram cookie token'i bos.".to_string());
+        return Err(instagram_cookie_boundary_error(
+            "Gecici Instagram cookie token'i bos.",
+        ));
     }
 
     let prepared = {
@@ -2301,16 +2266,20 @@ fn materialize_prepared_instagram_cookie_file(token: &str) -> Result<TempArtifac
             .map_err(|_| "Gecici Instagram cookie kilidi alinamadi.".to_string())?;
         prune_prepared_instagram_cookies_locked(&mut cookies);
         cookies.get(clean).cloned().ok_or_else(|| {
-            "Gecici Instagram cookie izni suresi doldu. Tekrar izin ver.".to_string()
+            instagram_cookie_boundary_error("Gecici Instagram cookie izni suresi doldu. Tekrar izin ver.")
         })?
     };
 
     if now_ms().saturating_sub(prepared.created_at_ms) > PREPARED_INSTAGRAM_COOKIE_TTL_MS {
-        return Err("Gecici Instagram cookie izni suresi doldu. Tekrar izin ver.".to_string());
+        return Err(instagram_cookie_boundary_error(
+            "Gecici Instagram cookie izni suresi doldu. Tekrar izin ver.",
+        ));
     }
 
     if !netscape_cookie_has_instagram_session(&prepared.text) {
-        return Err("Gecici Instagram cookie verisi gecersiz veya bos.".to_string());
+        return Err(instagram_cookie_boundary_error(
+            "Gecici Instagram cookie verisi gecersiz veya bos.",
+        ));
     }
 
     TempArtifact::write(
@@ -2323,7 +2292,11 @@ fn materialize_prepared_instagram_cookie_file(token: &str) -> Result<TempArtifac
 
 fn structured_backend_error(code: &str, message: &str) -> String {
     let (retryable, action) = match code {
-        "instagram_auth_required" | "twitter_auth_required" | "twitter_auth_failed" => {
+        "instagram_auth_required"
+        | "instagram_auth_expired"
+        | "instagram_cookie_invalid"
+        | "twitter_auth_required"
+        | "twitter_auth_failed" => {
             (true, Some("request_cookie_permission"))
         }
         "instagram_browser_locked" | "browser_restart_required" | "browser_still_running" => {
@@ -2347,6 +2320,42 @@ fn structured_backend_error(code: &str, message: &str) -> String {
         serde_json::to_string(&payload)
             .unwrap_or_else(|_| format!("{{\"code\":\"{}\",\"message\":\"{}\"}}", code, message))
     )
+}
+
+fn instagram_cookie_boundary_error(error: impl Into<String>) -> String {
+    let error = error.into();
+    if ApiError::from_legacy(&error).code != "internal_error" {
+        return error;
+    }
+
+    let lower = error.to_ascii_lowercase();
+    let code = if lower.contains("suresi dol") || lower.contains("session expired") {
+        "instagram_auth_expired"
+    } else if [
+        "decrypt",
+        "kayitli cookie verisi bos",
+        "kayitli instagram cookie verisi acilamadi",
+        "kayitli instagram cookie verisi okunamadi",
+        "deÅŸifre",
+        "cookie verisi gecersiz",
+        "cookie verisi geçersiz",
+        "cookie verisi metin formatinda degil",
+        "cookie verisi metin formatında değil",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+    {
+        "instagram_cookie_invalid"
+    } else if ["oturumu bulunamadi", "oturumu bulunamadı", "sessionid"]
+        .iter()
+        .any(|needle| lower.contains(needle))
+    {
+        "instagram_auth_required"
+    } else {
+        return error;
+    };
+
+    structured_backend_error(code, &error)
 }
 
 fn instagram_highlight_unsupported_error(clean_url: &str) -> Option<String> {
@@ -3361,6 +3370,31 @@ fn existing_file(path: PathBuf) -> Option<PathBuf> {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn windows_system_tool_path(tool: &str) -> Option<PathBuf> {
+    use std::{ffi::OsString, os::windows::ffi::OsStringExt};
+    use windows_sys::Win32::System::SystemInformation::GetSystemDirectoryW;
+
+    if Path::new(tool).file_name().and_then(OsStr::to_str) != Some(tool) {
+        return None;
+    }
+
+    let mut buffer = vec![0_u16; 32_768];
+    // SAFETY: buffer is writable for the supplied UTF-16 element count.
+    let length = unsafe { GetSystemDirectoryW(buffer.as_mut_ptr(), buffer.len() as u32) } as usize;
+    if length == 0 || length >= buffer.len() {
+        return None;
+    }
+    let path = PathBuf::from(OsString::from_wide(&buffer[..length])).join(tool);
+    runtime_tool_file_is_valid(&path).then_some(path)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn windows_system_tool_path(_tool: &str) -> Option<PathBuf> {
+    None
+}
+
+#[cfg(debug_assertions)]
 fn find_in_path(tool: &str) -> Option<PathBuf> {
     let mut command = hidden_command("where.exe");
     command.arg(tool);
@@ -3407,6 +3441,7 @@ fn candidate_tool_paths(app: &tauri::AppHandle, tool: &str) -> Vec<PathBuf> {
         paths.push(resource_dir.join("binaries").join(&suffixed));
     }
 
+    #[cfg(debug_assertions)]
     if let Ok(current_dir) = std::env::current_dir() {
         paths.push(current_dir.join("src-tauri").join("binaries").join(&plain));
         paths.push(
@@ -3419,6 +3454,7 @@ fn candidate_tool_paths(app: &tauri::AppHandle, tool: &str) -> Vec<PathBuf> {
         paths.push(current_dir.join("binaries").join(&suffixed));
     }
 
+    #[cfg(debug_assertions)]
     if tool == "ffmpeg" || tool == "ffprobe" {
         paths.push(PathBuf::from(FFMPEG_DIR).join(&plain));
     }
@@ -3426,19 +3462,31 @@ fn candidate_tool_paths(app: &tauri::AppHandle, tool: &str) -> Vec<PathBuf> {
     paths
 }
 
-fn find_source_tool_path(app: &tauri::AppHandle, tool: &str) -> Result<PathBuf, String> {
+fn find_bundled_tool_path(app: &tauri::AppHandle, tool: &str) -> Result<PathBuf, String> {
     for path in candidate_tool_paths(app, tool) {
         if let Some(found) = existing_file(path) {
             return Ok(found);
         }
     }
 
+    Err(format!(
+        "{} bulunamadı. Uygulama kurulumunu onarın.",
+        tool
+    ))
+}
+
+fn find_source_tool_path(app: &tauri::AppHandle, tool: &str) -> Result<PathBuf, String> {
+    if let Ok(found) = find_bundled_tool_path(app, tool) {
+        return Ok(found);
+    }
+
+    #[cfg(debug_assertions)]
     if let Some(found) = find_in_path(tool) {
         return Ok(found);
     }
 
     Err(format!(
-        "{} bulunamadı. Installer içine gömülü binary veya PATH kurulumu yok.",
+        "{} bulunamadı. Uygulama kurulumunu onarın.",
         tool
     ))
 }
@@ -3480,6 +3528,25 @@ fn copy_runtime_tool_atomically(tool: &str, source: &Path, dest: &Path) -> Resul
 }
 
 fn ensure_runtime_tool(app: &tauri::AppHandle, tool: &str) -> Result<PathBuf, String> {
+    if tool == "yt-dlp" {
+        let resolved = if let Some(managed) = component_updates::resolve_managed_ytdlp(|path| {
+            runtime_tool_is_healthy("yt-dlp", path)
+        }) {
+            managed
+        } else {
+            let bundled = find_bundled_tool_path(app, "yt-dlp")?;
+            if !runtime_tool_is_healthy("yt-dlp", &bundled) {
+                return Err("yt-dlp sağlık kontrolü başarısız. Uygulamayı onarın.".into());
+            }
+            bundled
+        };
+        runtime_tool_cache()
+            .lock()
+            .map_err(|_| "Runtime araç kayıt kilidi alınamadı.".to_string())?
+            .insert(tool.to_string(), resolved.clone());
+        return Ok(resolved);
+    }
+
     if let Ok(cache) = runtime_tool_cache().lock() {
         if let Some(path) = cache
             .get(tool)
@@ -4291,11 +4358,11 @@ fn is_ssl_or_network_error(error: &str) -> bool {
         || lower.contains("network")
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum ExternalDownloader {
     Native,
     Aria2c,
-    Curl,
+    Curl(PathBuf),
 }
 
 #[derive(Clone)]
@@ -8122,7 +8189,7 @@ fn build_download_command(
         }
     }
 
-    match attempt.external_downloader {
+    match &attempt.external_downloader {
         ExternalDownloader::Native => {}
         ExternalDownloader::Aria2c => {
             command
@@ -8133,12 +8200,14 @@ fn build_download_command(
                 .arg("--downloader-args")
                 .arg("aria2c:-x 8 -s 8 -k 1M --file-allocation=none --summary-interval=1 --console-log-level=warn");
         }
-        ExternalDownloader::Curl => {
+        ExternalDownloader::Curl(curl_path) => {
             command
                 .arg("--downloader")
-                .arg("curl")
+                .arg(curl_path)
+                .arg("--downloader")
+                .arg("dash,m3u8:native")
                 .arg("--downloader-args")
-                .arg("curl:-L --retry 5 --retry-delay 1 --connect-timeout 30");
+                .arg("curl:-L --retry 5 --retry-delay 1 --connect-timeout 30 --http1.1 --tls-max 1.2");
         }
     }
 
@@ -8267,6 +8336,7 @@ fn make_youtube_attempts(
     quality: &str,
     fast_mode: bool,
     clip_active: bool,
+    system_curl: Option<&Path>,
 ) -> Vec<DownloadAttempt> {
     let mut attempts = Vec::new();
 
@@ -8316,6 +8386,19 @@ fn make_youtube_attempts(
 
     // Aşağıdaki denemeler yalnızca önceki denemelerde SSL/ağ hatası tespit edilirse çalışır.
     // Kullanıcının seçtiği kalite korunur; 720p/tek dosya gibi kalite düşüren fallback yapılmaz.
+    if !clip_active {
+        if let Some(system_curl) = system_curl {
+            let mut curl_rescue = download_attempt(
+                "YouTube direct HTTPS / TLS 1.2 uyumluluk modu",
+                &selected_selector,
+            );
+            curl_rescue.external_downloader = ExternalDownloader::Curl(system_curl.to_path_buf());
+            curl_rescue.force_ipv4 = true;
+            curl_rescue.only_when_ssl_error = true;
+            attempts.push(curl_rescue);
+        }
+    }
+
     let mut chunk = download_attempt(
         "YouTube ağ kurtarma / küçük HTTP parçaları",
         &selected_selector,
@@ -8331,15 +8414,6 @@ fn make_youtube_attempts(
         aria_rescue.force_ipv4 = true;
         aria_rescue.only_when_ssl_error = true;
         attempts.push(aria_rescue);
-
-        if find_in_path("curl").is_some() {
-            let mut curl_rescue =
-                download_attempt("YouTube ağ kurtarma / curl", &selected_selector);
-            curl_rescue.external_downloader = ExternalDownloader::Curl;
-            curl_rescue.force_ipv4 = true;
-            curl_rescue.only_when_ssl_error = true;
-            attempts.push(curl_rescue);
-        }
     }
 
     let mut android = download_attempt("YouTube ağ kurtarma / Android client", &selected_selector);
@@ -8411,10 +8485,17 @@ fn user_friendly_download_error(is_youtube: bool, errors: &[(String, String)]) -
         .join("\n\n");
 
     if is_youtube && is_ssl_or_network_error(&combined) {
+        let direct_https_tls12_attempted = errors
+            .iter()
+            .any(|(label, _)| label == "YouTube direct HTTPS / TLS 1.2 uyumluluk modu");
+        let compatibility_note = direct_https_tls12_attempted.then_some(
+            "Direct HTTPS aktarımı için TLS 1.2 uyumluluk denendi; DASH/HLS veya segmentli aktarım bu yöntemle kurtarılmaz.\n\n",
+        );
         return format!(
-            "YouTube indirme başarısız oldu. Bu PC/ağ YouTube googlevideo CDN bağlantısını kesiyor olabilir.\n\n\
+            "YouTube indirme başarısız oldu. {}Bu PC/ağ YouTube googlevideo CDN bağlantısını kesiyor olabilir.\n\n\
             Denenecekler: telefon hotspot, VPN kapatma/açma, antivirüs Web Shield/HTTPS scanning kapatma, IPv6 kapatma veya farklı DNS.\n\n\
             Son hata:\n{}",
+            compatibility_note.unwrap_or_default(),
             last_error.trim()
         );
     }
@@ -9223,6 +9304,20 @@ fn cookie_browser_executable_candidates(browser_id: &str) -> Vec<PathBuf> {
     let local = env_path("LOCALAPPDATA");
     let program_files = env_path("PROGRAMFILES");
     let program_files_x86 = env_path("PROGRAMFILES(X86)");
+    cookie_browser_executable_candidates_for_roots(
+        browser_id,
+        local.as_deref(),
+        program_files.as_deref(),
+        program_files_x86.as_deref(),
+    )
+}
+
+fn cookie_browser_executable_candidates_for_roots(
+    browser_id: &str,
+    local: Option<&Path>,
+    program_files: Option<&Path>,
+    program_files_x86: Option<&Path>,
+) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
 
     match browser_id {
@@ -9231,11 +9326,23 @@ fn cookie_browser_executable_candidates(browser_id: &str) -> Vec<PathBuf> {
                 candidates.push(root.join("Programs").join("Opera GX").join("opera.exe"));
                 candidates.push(root.join("Programs").join("Opera GX").join("launcher.exe"));
             }
+            if let Some(root) = program_files {
+                candidates.push(root.join("Opera GX").join("launcher.exe"));
+            }
+            if let Some(root) = program_files_x86 {
+                candidates.push(root.join("Opera GX").join("launcher.exe"));
+            }
         }
         "opera" => {
             if let Some(root) = local.as_ref() {
                 candidates.push(root.join("Programs").join("Opera").join("opera.exe"));
                 candidates.push(root.join("Programs").join("Opera").join("launcher.exe"));
+            }
+            if let Some(root) = program_files {
+                candidates.push(root.join("Opera").join("launcher.exe"));
+            }
+            if let Some(root) = program_files_x86 {
+                candidates.push(root.join("Opera").join("launcher.exe"));
             }
         }
         "chrome" => {
@@ -9306,9 +9413,18 @@ fn cookie_browser_executable_candidates(browser_id: &str) -> Vec<PathBuf> {
 
 fn extension_browser_url(browser_id: &str) -> Option<&'static str> {
     match browser_id {
-        "opera_gx" | "opera" => Some("opera://extensions"),
+        "opera_gx" | "opera" => Some("opera:extensions"),
         "chrome" => Some("chrome://extensions"),
         "edge" => Some("edge://extensions"),
+        _ => None,
+    }
+}
+
+fn extension_browser_launch_page(browser_id: &str) -> Option<Option<&'static str>> {
+    match browser_id {
+        "opera_gx" | "opera" => Some(None),
+        "chrome" => Some(Some("chrome://extensions")),
+        "edge" => Some(Some("edge://extensions")),
         _ => None,
     }
 }
@@ -9408,7 +9524,7 @@ fn open_extension_setup(
     browser_id: String,
 ) -> ApiResult<ExtensionSetupInfo> {
     let clean_id = browser_id.trim();
-    let page = extension_browser_url(clean_id).ok_or_else(|| {
+    let launch_page = extension_browser_launch_page(clean_id).ok_or_else(|| {
         ApiError::new("browser_unsupported", "Desteklenmeyen tarayıcı seçildi.")
     })?;
     let executable = extension_browser_executable(clean_id).ok_or_else(|| {
@@ -9418,13 +9534,16 @@ fn open_extension_setup(
         )
     })?;
 
-    Command::new(executable)
-        .arg(page)
+    let mut command = Command::new(executable);
+    if let Some(page) = launch_page {
+        command.arg(page);
+    }
+    command
         .spawn()
         .map_err(|error| {
             ApiError::new(
                 "browser_open_failed",
-                format!("Tarayıcı eklenti sayfası açılamadı: {error}"),
+                format!("Tarayıcı açılamadı: {error}"),
             )
         })?;
 
@@ -9751,7 +9870,9 @@ async fn prepare_instagram_cookie_auth(
     })
     .await
     .map_err(|err| ApiError::new("thread_error", format!("Instagram cookie hazirlama thread hatasi: {}", err)))?;
-    result.map_err(ApiError::from)
+    result.map_err(|error| {
+        ApiError::from(sanitize_report_text(&instagram_cookie_boundary_error(error)))
+    })
 }
 
 fn command_output_text(output: &TimedCommandOutput) -> String {
@@ -10630,9 +10751,8 @@ fn best_instagram_cookie_jar(
 
     if !root.is_dir() {
         return Err(format!(
-            "{} kurulu gorunmuyor veya profil klasoru bulunamadi: {}",
-            browser_label,
-            root.to_string_lossy()
+            "{} kurulu gorunmuyor veya profil klasoru bulunamadi.",
+            browser_label
         ));
     }
 
@@ -10706,10 +10826,8 @@ fn best_instagram_cookie_jar(
 
     if !cookie_jar_has_login_session(&best.cookies) {
         let candidate_summary = format!(
-            "okunan profil: {}, cookie sayisi: {}, cozulemeyen cookie: {}",
-            best.profile_label,
-            best.cookies.len(),
-            best.failed_decrypts
+            "okunan profil bulundu, cookie sayisi: {}, cozulemeyen cookie: {}",
+            best.cookies.len(), best.failed_decrypts
         );
         return Err(format!(
             "Secili tarayicida Instagram oturumu bulunamadi. Instagram'a giris yaptigin tarayiciyi sec. {}",
@@ -12340,6 +12458,10 @@ fn collect_media(
         return Err(gallery_error);
     }
 
+    if structured_backend_error_code(&gallery_error).is_some() {
+        return Err(gallery_error);
+    }
+
     if instagram_helper_fallback_allowed(clean_url, &gallery_error) {
         match instaloader_collect_media(app, clean_url, auth_mode) {
             Ok(mut analysis) => {
@@ -12402,14 +12524,15 @@ fn instagram_auth_mode_uses_credentials(auth_mode: Option<&str>) -> bool {
 }
 
 fn structured_backend_error_code(error: &str) -> Option<String> {
-    let payload = error.strip_prefix(STRUCTURED_ERROR_PREFIX)?.trim();
-    serde_json::from_str::<serde_json::Value>(payload)
-        .ok()?
-        .get("code")?
-        .as_str()
-        .map(str::trim)
-        .filter(|code| !code.is_empty())
-        .map(str::to_string)
+    let decoded = ApiError::from_legacy(error);
+    (decoded.code != "internal_error").then_some(decoded.code)
+}
+
+fn media_batch_failure_requires_auth_recovery(error: &str) -> bool {
+    matches!(
+        structured_backend_error_code(error).as_deref(),
+        Some("instagram_auth_required" | "instagram_auth_expired" | "instagram_cookie_invalid")
+    )
 }
 
 fn instagram_helper_fallback_allowed(clean_url: &str, error: &str) -> bool {
@@ -12481,7 +12604,6 @@ fn gallery_error_indicates_auth_failure(error: &str) -> bool {
         "sessionid cookie",
         "cookies are required",
         "401 unauthorized",
-        "403 forbidden",
         "oturumu bulunamadi",
         "oturumu bulunamadı",
         "oturum dogrulanamadi",
@@ -12495,6 +12617,9 @@ fn gallery_error_indicates_auth_failure(error: &str) -> bool {
 
 fn instagram_story_error_code(error: &str) -> Option<&'static str> {
     let lower = error.to_ascii_lowercase();
+    if gallery_error_indicates_auth_failure(error) {
+        return Some("instagram_auth_required");
+    }
     if lower.contains("429") || lower.contains("rate limit") || lower.contains("too many requests")
     {
         return Some("instagram_rate_limited");
@@ -12610,9 +12735,12 @@ fn gallerydl_collect_media(
                         video_info: None,
                     });
                 }
-                Err(err) => {
-                    if gallery_error_indicates_auth_failure(&err) {
-                        saw_auth_failure = true;
+            Err(err) => {
+                if structured_backend_error_code(&err).is_some() {
+                    return Err(err);
+                }
+                if gallery_error_indicates_auth_failure(&err) {
+                    saw_auth_failure = true;
                     }
                     errors.push(format!("{}: {}", auth.label(), sanitize_report_text(&err)));
                     continue;
@@ -12684,8 +12812,7 @@ fn gallerydl_collect_media(
                     });
                 }
                 Ok(_) => {
-                    if matches!(auth, GalleryAuthAttempt::None) && !tried_instagram_public_fallback
-                    {
+                    if matches!(auth, GalleryAuthAttempt::None) && !tried_instagram_public_fallback {
                         tried_instagram_public_fallback = true;
                         if let Some(analysis) =
                             try_instagram_public_html_fallback(clean_url, &platform, &mut errors)
@@ -12700,7 +12827,16 @@ fn gallerydl_collect_media(
                     ));
                 }
                 Err(err) => {
-                    if matches!(auth, GalleryAuthAttempt::None) && !tried_instagram_public_fallback
+                    if structured_backend_error_code(&err).is_some() {
+                        return Err(err);
+                    }
+                    if platform == "instagram" && gallery_error_indicates_auth_failure(&err) {
+                        saw_auth_failure = true;
+                    }
+
+                    if matches!(auth, GalleryAuthAttempt::None)
+                        && !tried_instagram_public_fallback
+                        && !gallery_error_indicates_auth_failure(&err)
                     {
                         tried_instagram_public_fallback = true;
                         if let Some(analysis) =
@@ -12714,11 +12850,17 @@ fn gallerydl_collect_media(
                 }
             },
             Err(err) => {
+                if structured_backend_error_code(&err).is_some() {
+                    return Err(err);
+                }
                 if platform == "instagram" && gallery_error_indicates_auth_failure(&err) {
                     saw_auth_failure = true;
                 }
 
-                if matches!(auth, GalleryAuthAttempt::None) && !tried_instagram_public_fallback {
+                if matches!(auth, GalleryAuthAttempt::None)
+                    && !tried_instagram_public_fallback
+                    && !gallery_error_indicates_auth_failure(&err)
+                {
                     tried_instagram_public_fallback = true;
                     if let Some(analysis) =
                         try_instagram_public_html_fallback(clean_url, &platform, &mut errors)
@@ -12740,6 +12882,16 @@ fn gallerydl_collect_media(
         }
     }
 
+    if platform == "instagram" && saw_auth_failure {
+        return Err(structured_backend_error(
+            "instagram_auth_required",
+            &format!(
+                "Instagram oturumu gecersiz veya suresi dolmus.\n{}",
+                combined
+            ),
+        ));
+    }
+
     if platform == "instagram" && public_only && tried_instagram_public_fallback {
         let public_details = errors.join("\n");
 
@@ -12751,16 +12903,6 @@ fn gallerydl_collect_media(
                 public_details
             )
         });
-    }
-
-    if platform == "instagram" && saw_auth_failure {
-        return Err(structured_backend_error(
-            "instagram_auth_required",
-            &format!(
-                "Instagram oturumu gecersiz veya suresi dolmus.\n{}",
-                combined
-            ),
-        ));
     }
 
     Err(if combined.trim().is_empty() {
@@ -13565,6 +13707,9 @@ fn download_media_batch_blocking_with_job(
 
                     match attempt {
                         Ok(file) => files.push(file),
+                        Err(message) if media_batch_failure_requires_auth_recovery(&message) => {
+                            return Err(message)
+                        }
                         Err(message) => failures.push(MediaDownloadFailure {
                             item_id: item_id.clone(),
                             source_index,
@@ -14713,12 +14858,14 @@ fn download_video_blocking_with_job(
     }
 
     let attempts = if is_youtube {
+        let system_curl = windows_system_tool_path("curl.exe");
         make_youtube_attempts(
             clean_kind,
             clean_format_id,
             &quality,
             fast_mode,
             clip_range.is_some(),
+            system_curl.as_deref(),
         )
     } else {
         make_generic_attempts(
@@ -14760,9 +14907,9 @@ fn download_video_blocking_with_job(
             clip_range,
         ) {
             Ok(()) => {
-                let mode_note = match attempt.external_downloader {
+                let mode_note = match &attempt.external_downloader {
                     ExternalDownloader::Aria2c if !attempt.only_when_ssl_error => "Hızlı mod",
-                    ExternalDownloader::Aria2c | ExternalDownloader::Curl => "Ağ kurtarma modu",
+                    ExternalDownloader::Aria2c | ExternalDownloader::Curl(_) => "Ağ kurtarma modu",
                     ExternalDownloader::Native if attempt.only_when_ssl_error => "Ağ kurtarma modu",
                     ExternalDownloader::Native => "Stabil mod",
                 };

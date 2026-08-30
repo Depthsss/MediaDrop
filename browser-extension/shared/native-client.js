@@ -1,8 +1,8 @@
 const PROTOCOL_VERSION = 1;
 const REQUEST_TIMEOUT_MS = 45_000;
 
-function bridgeError(code, message = code) {
-  return Object.assign(new Error(message), { code });
+function bridgeError(code, message = code, details = {}) {
+  return Object.assign(new Error(message), details, { code });
 }
 
 export class NativeClient {
@@ -18,6 +18,9 @@ export class NativeClient {
 
   async connect() {
     if (this.hello) return this.hello;
+    const extensionVersion = this.runtime.getManifest?.().version
+      || globalThis.chrome?.runtime?.getManifest?.().version
+      || "0.0.0";
     const port = this.runtime.connectNative(this.hostName);
     this.port = port;
     port.onMessage.addListener((message) => this.#onMessage(port, message));
@@ -25,14 +28,24 @@ export class NativeClient {
     this.hello = this.#send(
       "hello",
       {
-        extensionVersion: globalThis.chrome?.runtime?.getManifest?.().version || "0.0.0",
+        extensionVersion,
         supportedProtocol: { min: PROTOCOL_VERSION, max: PROTOCOL_VERSION },
       },
       this.randomUuid(),
     )
       .then((response) => {
         if (response.status !== "accepted" || response.payload?.selectedProtocol !== PROTOCOL_VERSION) {
-          throw bridgeError(response.error?.code || "version_mismatch", response.error?.message);
+          throw bridgeError(response.error?.code || "version_mismatch", response.error?.message, {
+            action: response.error?.action,
+            expectedExtensionVersion: response.payload?.expectedExtensionVersion,
+          });
+        }
+        if (response.payload?.appVersion !== extensionVersion) {
+          throw bridgeError(
+            "version_mismatch",
+            "MediaDrop uygulaması ve tarayıcı eklentisi sürümleri uyuşmuyor.",
+            { action: "update_app_or_extension", expectedExtensionVersion: extensionVersion },
+          );
         }
         return response;
       })

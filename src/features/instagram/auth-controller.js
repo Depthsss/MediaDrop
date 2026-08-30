@@ -412,12 +412,12 @@ export function createInstagramAuthController({
   };
 
   const requestBrowserRestartConfirmation = ({ browserLabel = "Tarayıcı", force = false } = {}) => {
-    const title = force ? `${browserLabel} kapanmadı` : `${browserLabel} açık görünüyor`;
+    const title = `${browserLabel} açık görünüyor`;
     const status = force
-      ? `${browserLabel} normal şekilde kapanmadı. Kaydedilmemiş işlerin varsa kaydettiğinden emin ol; onay verirsen zorla kapatıp çerezleri okuyacağız.`
+      ? `Oturum çerezlerini okuyabilmemiz için ${browserLabel} tamamen kapatılacak ve işlem bitince yeniden açılacak. Kaydedilmemiş çalışmalarını kaydet.`
       : `Çerezleri güvenli okuyabilmemiz için ${browserLabel} tarayıcını kısa süreliğine yeniden başlatmamız gerekiyor. Lütfen kaydedilmemiş işlerini kaydet.`;
     const allowText = force
-      ? "Zorla kapat ve devam et"
+      ? "Tarayıcıyı kapat ve devam et"
       : "Tarayıcıyı yeniden başlat ve devam et";
 
     if (browserRestartTitle) browserRestartTitle.textContent = title;
@@ -555,10 +555,9 @@ export function createInstagramAuthController({
 
     let restartBrowser = false;
     let forceClose = false;
-    let restartPromptAttempts = 0;
     let forcePromptAttempts = 0;
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
       setBrowserRestartBusy({
         title: restartBrowser
           ? `${browserLabel} hazırlanıyor`
@@ -592,24 +591,8 @@ export function createInstagramAuthController({
         const parsed = parseBackendError(error);
         const recoveryStep = nextInstagramCookiePrepareStep({
           code: parsed.code || parsed.debugCode,
-          restartPromptAttempts,
           forcePromptAttempts,
         });
-        if (recoveryStep === "restart") {
-          restartPromptAttempts += 1;
-          const allowed = await requestBrowserRestartConfirmation({
-            browserLabel,
-            force: false,
-          });
-          if (!allowed) {
-            throw new Error(
-              "Tarayıcı yeniden başlatma iznini reddettiniz. Görsel/Görseller indirilemedi."
-            );
-          }
-          restartBrowser = true;
-          forceClose = false;
-          continue;
-        }
         if (recoveryStep === "force-close") {
           forcePromptAttempts += 1;
           const allowed = await requestBrowserRestartConfirmation({
@@ -618,7 +601,7 @@ export function createInstagramAuthController({
           });
           if (!allowed) {
             throw new Error(
-              "Tarayıcıyı zorla kapatma iznini reddettiniz. Görsel/Görseller indirilemedi."
+              "Tarayıcıyı kapatma iznini reddettiniz. Görsel/Görseller indirilemedi."
             );
           }
           restartBrowser = true;

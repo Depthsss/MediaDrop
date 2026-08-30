@@ -56,7 +56,19 @@ impl ApiError {
     pub(crate) fn from_legacy(error: impl Into<String>) -> Self {
         let error = error.into();
         if let Some(payload) = error.strip_prefix(STRUCTURED_ERROR_PREFIX) {
-            if let Ok(parsed) = serde_json::from_str::<ApiError>(payload) {
+            let mut values = serde_json::Deserializer::from_str(payload).into_iter::<ApiError>();
+            if let Some(Ok(mut parsed)) = values.next() {
+                if parsed.report_id.is_none() {
+                    let suffix = &payload[values.byte_offset()..];
+                    if let Some((_, reference)) =
+                        suffix.rsplit_once("Hata raporu oluşturuldu:")
+                    {
+                        let reference = reference.trim();
+                        if !reference.is_empty() {
+                            parsed.report_id = Some(reference.to_string());
+                        }
+                    }
+                }
                 return parsed;
             }
         }
@@ -105,6 +117,24 @@ mod tests {
                 .as_ref()
                 .map(|offer| offer.kind.as_str()),
             Some("hls_1080")
+        );
+    }
+
+    #[test]
+    fn structured_error_keeps_its_code_when_a_report_reference_is_appended() {
+        let raw = format!(
+            "{}{}\n\nHata raporu oluşturuldu: C:\\Reports\\instagram.txt",
+            STRUCTURED_ERROR_PREFIX,
+            r#"{"code":"instagram_auth_required","message":"Instagram oturumu gerekiyor.","retryable":true,"action":"request_cookie_permission"}"#
+        );
+
+        let error = ApiError::from_legacy(raw);
+
+        assert_eq!(error.code, "instagram_auth_required");
+        assert_eq!(error.action.as_deref(), Some("request_cookie_permission"));
+        assert_eq!(
+            error.report_id.as_deref(),
+            Some(r"C:\Reports\instagram.txt")
         );
     }
 }

@@ -25,13 +25,14 @@ use crate::{
     download_media_post_card_blocking_with_job, download_twitter_post_blocking,
     download_video_blocking_with_job, ensure_download_job_history_owner, ensure_download_job_owner,
     record_download_job_operation, record_download_job_result, record_download_job_terminal,
-    register_media_analysis, run_ytdlp_json_analysis, show_main_window,
+    queue_extension_setup_request, register_media_analysis, run_ytdlp_json_analysis,
+    show_main_window,
     update_download_job_progress, DownloadJobStop, DownloadResultKind, TwitterPostCardLayout,
 };
 use protocol::{
-    hello_response, media_display_title, normalize_page_url, parse_request, project_media_analysis,
-    project_ytdlp_analysis, validate_source_payload, Command, RequestEnvelope, ResponseEnvelope,
-    SourcePayload, MAX_RESPONSE_BYTES, PROTOCOL_VERSION,
+    hello_requires_extension_refresh, hello_response, media_display_title, normalize_page_url,
+    parse_request, project_media_analysis, project_ytdlp_analysis, validate_source_payload, Command,
+    RequestEnvelope, ResponseEnvelope, SourcePayload, MAX_RESPONSE_BYTES, PROTOCOL_VERSION,
 };
 use state::{
     AnalysisSnapshot, AnalysisStatus, CompanionStore, DownloadPlan, InsertOutcome, StoredAnalysis,
@@ -194,7 +195,18 @@ fn time_ms() -> u128 {
 
 pub(crate) fn analysis_error(site: &str, raw: String) -> (AnalysisStatus, ApiError) {
     if let Some(encoded) = raw.strip_prefix(STRUCTURED_ERROR_PREFIX) {
-        if let Ok(error) = serde_json::from_str::<ApiError>(encoded) {
+        if let Ok(mut error) = serde_json::from_str::<ApiError>(encoded) {
+            if site == "instagram"
+                && matches!(
+                    error.code.as_str(),
+                    "instagram_auth_required"
+                        | "instagram_auth_expired"
+                        | "instagram_cookie_invalid"
+                        | "instagram_browser_locked"
+                )
+            {
+                error.message = "Instagram oturumunu yenilemek için masaüstü uygulamasında tarayıcı iznini tamamla.".to_string();
+            }
             let needs_user = error.code.contains("auth")
                 || error.code.contains("cookie")
                 || error.code.contains("browser")
@@ -2043,9 +2055,16 @@ fn dispatch(app: &tauri::AppHandle, request: &RequestEnvelope) -> ResponseEnvelo
     if request.command == Command::Hello {
         return match hello_response(request) {
             Ok(response) => {
-                EXTENSION_CONNECTED.store(true, Ordering::Release);
-                #[cfg(target_os = "windows")]
-                windows_pipe::signal_installer_extension_connection();
+                let accepted = response.status == "accepted";
+                EXTENSION_CONNECTED.store(accepted, Ordering::Release);
+                if accepted {
+                    #[cfg(target_os = "windows")]
+                    windows_pipe::signal_installer_extension_connection();
+                } else if hello_requires_extension_refresh(&response) {
+                    queue_extension_setup_request();
+                    let _ = app.emit("open-extension-setup", ());
+                    let _ = show_main_window(app);
+                }
                 response
             }
             Err(error) => ResponseEnvelope::failure(request, error),
@@ -2128,6 +2147,30 @@ mod tests {
         let (status, error) = analysis_error("youtube", encoded);
         assert_eq!(status, AnalysisStatus::NeedsUser);
         assert_eq!(error.code, "youtube_auth_required");
+
+        let typed = ApiError::new(
+            "instagram_auth_required",
+            "public: gallery-dl JSON çıktısı: https://example.invalid/?token=SECRET_CANARY",
+        )
+        .with_retryable(true)
+        .with_action("open_advanced")
+        .with_report_id("report-1");
+        let encoded = format!(
+            "{}{}",
+            STRUCTURED_ERROR_PREFIX,
+            serde_json::to_string(&typed).unwrap()
+        );
+        let (status, error) = analysis_error("instagram", encoded);
+        assert_eq!(status, AnalysisStatus::NeedsUser);
+        assert_eq!(error.code, "instagram_auth_required");
+        assert_eq!(error.action.as_deref(), Some("open_advanced"));
+        assert_eq!(error.report_id.as_deref(), Some("report-1"));
+        assert_eq!(
+            error.message,
+            "Instagram oturumunu yenilemek için masaüstü uygulamasında tarayıcı iznini tamamla."
+        );
+        assert!(!error.message.contains("gallery-dl"));
+        assert!(!error.message.contains("SECRET_CANARY"));
 
         let (status, error) = analysis_error(
             "youtube",

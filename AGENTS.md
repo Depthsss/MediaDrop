@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-MediaDrop is a Tauri 2 desktop app with a vanilla web UI and Rust backend. Frontend files live in `src/`: `index.html`, `main.js`, `styles.css`, and image assets in `src/assets/`. Native code, app configuration, permissions, icons, and bundled command-line tools live in `src-tauri/`; the main Rust logic is in `src-tauri/src/lib.rs` and startup wiring is in `src-tauri/src/main.rs`. Windows-focused diagnostic helpers are in `tools/`.
+MediaDrop is a Tauri 2 desktop app with a vanilla web UI and Rust backend. Frontend files live in `src/`: `index.html`, `main.js`, `styles.css`, and image assets in `src/assets/`. Native code, app configuration, permissions, icons, and bundled command-line tools live in `src-tauri/`; the main Rust logic is in `src-tauri/src/lib.rs` and startup wiring is in `src-tauri/src/main.rs`. Windows-focused diagnostic helpers are in `tools/`. Release metadata and scripts are at the repository root, including `latest.json`, `release-notes.md`, `generate-latest.ps1`, and `release-mediadrop.ps1`.
 
 ## Build, Test, and Development Commands
 
@@ -11,6 +11,7 @@ MediaDrop is a Tauri 2 desktop app with a vanilla web UI and Rust backend. Front
 - `npm run tauri build`: build the bundled Windows MSI and updater artifacts.
 - `cd src-tauri; cargo test`: run Rust tests when present.
 - `cd src-tauri; cargo fmt`: format Rust code before submitting changes.
+- `.\generate-latest.ps1` / `.\release-mediadrop.ps1`: update release metadata and package releases; use from PowerShell on Windows.
 
 ## Coding Style & Naming Conventions
 

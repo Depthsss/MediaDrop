@@ -299,6 +299,12 @@
   min-width: 0;
 }
 
+.extension-path-row > .extension-path-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
 .extension-path-row span,
 .extension-path-row code {
   display: block;
@@ -405,5 +411,13 @@
 
   .extension-path-row code {
     max-width: 100%;
+  }
+
+  .extension-path-row > .extension-path-actions {
+    width: 100%;
+  }
+
+  .extension-path-actions button {
+    flex: 1;
   }
 }

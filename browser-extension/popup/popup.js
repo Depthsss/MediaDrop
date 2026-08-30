@@ -1,6 +1,8 @@
 import { buildFormatCards } from "../shared/format-model.js";
 import {
   advancedIntentForAction,
+  completedStateForAction,
+  pendingStateForAction,
   readyStateForReturn,
   resultActionForState,
   shouldPollState,
@@ -82,6 +84,12 @@ function statusCopy(status, error) {
       "YouTube, Instagram, X veya TikTok’ta indirmek istediğin gönderiyi ya da videoyu açıp tekrar dene.",
     ];
   }
+  if (error?.code === "version_mismatch" && error?.action === "reload_extension") {
+    return [
+      "Eklenti güncellemesi hazır",
+      "Yeni MediaDrop dosyalarını etkinleştirmek için eklentiyi bir kez yenile.",
+    ];
+  }
   const copy = {
     accepted: ["Bağlanıyor", "MediaDrop yanıtı bekleniyor…"],
     app_starting: ["MediaDrop başlatılıyor", "Masaüstü uygulaması açılıyor…"],
@@ -122,7 +130,9 @@ function renderStatus(state) {
   if (state.error?.code === "content_page_required" || state.status === "unsupported") {
     section.append(button("Aktif sekmeyi yeniden tara", "retry_active_tab", "retry-button"));
   }
-  if (
+  if (state.status === "version_mismatch" && state.error?.action === "reload_extension") {
+    section.append(button("Eklentiyi yenile", "reload_extension", "download-primary"));
+  } else if (
     ["error", "needs_user", "version_mismatch"].includes(state.status)
     && state.error?.code !== "content_page_required"
   ) {
@@ -492,6 +502,10 @@ async function refresh(initial = false) {
 
 async function runAction(action) {
   if (!currentState || busy) return;
+  if (action === "reload_extension") {
+    chrome.runtime.reload();
+    return;
+  }
   if (action === "back_to_ready" && lastReadyState) {
     render(lastReadyState);
     return;
@@ -589,7 +603,7 @@ async function runAction(action) {
   }
   const sourceState = currentState;
   busy = true;
-  render(sourceState);
+  render(pendingStateForAction(action, sourceState));
   let command;
   let commandPayload = {};
   if (action === "open_app") command = "open_app";
@@ -645,9 +659,7 @@ async function runAction(action) {
     ? await send({ type: "native_command", command, payload: commandPayload })
     : currentState;
   busy = false;
-  const nextState = command === "open_advanced" && response.status === "accepted" && lastReadyState
-    ? { ...sourceState, status: "app_opened", error: null }
-    : response;
+  const nextState = completedStateForAction(command, response, sourceState);
   render(nextState);
   if (shouldPollState(nextState)) pollTimer = setTimeout(() => refresh(false), 1_000);
 }
