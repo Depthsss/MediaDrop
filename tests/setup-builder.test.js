@@ -8,8 +8,13 @@ import { fileURLToPath } from "node:url";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const setupVersion = JSON.parse(readFileSync(path.join(projectRoot, "package.json"), "utf8")).version;
-const removeTempRoot = (tempRoot) =>
-  rmSync(tempRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+const removeTempRoot = (tempRoot) => {
+  try {
+    rmSync(tempRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch (error) {
+    if (process.platform !== "win32" || !["EBUSY", "EPERM"].includes(error.code)) throw error;
+  }
+};
 
 test("production setup delegates MSI work to the normal-integrity broker", () => {
   const source = readFileSync(path.join(projectRoot, "installer", "setup.nsi"), "utf8");
